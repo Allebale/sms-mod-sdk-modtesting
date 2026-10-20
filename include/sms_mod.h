@@ -35,7 +35,7 @@
 #include <stdint.h>
 
 #define SMS_MOD_API_MAJOR 1
-#define SMS_MOD_API_MINOR 1
+#define SMS_MOD_API_MINOR 2
 #define SMS_MOD_API_VERSION ((uint32_t)SMS_MOD_API_MAJOR << 16 | SMS_MOD_API_MINOR)
 
 #if defined(_WIN32)
@@ -171,6 +171,18 @@ typedef enum SmsEventType {
 	SMS_EV_MOD_LOADED = 24,
 	/* The game is closing. No payload. */
 	SMS_EV_SHUTDOWN = 25,
+	/* Multiplayer (api->net). A player joined the game (SmsEvNetPlayer).
+	   Every game hears of it; a server mod greets them here. */
+	SMS_EV_NET_PLAYER_JOINED = 26,
+	/* A player left (SmsEvNetPlayer). */
+	SMS_EV_NET_PLAYER_LEFT = 27,
+	/* Host: a player arrived in the stage it plays (SmsEvNetPlayer): just
+	   joined, after a lost life's reload, or following the host to a new
+	   stage. Sticky commands have been replayed to them by then. */
+	SMS_EV_NET_PLAYER_ARRIVED = 28,
+	/* Host: it opened a new stage session, which every player follows
+	   (SmsEvNetSession). Sticky commands of the last session are gone. */
+	SMS_EV_NET_SESSION = 29,
 
 	/* core->event_id hands out ids from here for mods' own events. */
 	SMS_EV_CUSTOM_BASE = 0x10000
@@ -348,6 +360,17 @@ typedef struct SmsEvObjectMove {
 	int after;
 } SmsEvObjectMove;
 
+typedef struct SmsEvNetPlayer {
+	int slot;          /* 0..7; the host is 0 */
+	const char* name;  /* as the player set it, or their character's */
+	int character;     /* SMS_NET_CHAR_* */
+} SmsEvNetPlayer;
+
+typedef struct SmsEvNetSession {
+	int area, episode;
+	uint32_t session;  /* its number, for api->net->session() */
+} SmsEvNetSession;
+
 typedef struct SmsEvMod {
 	const char* id;
 	const char* name;
@@ -429,7 +452,28 @@ typedef struct SmsGameApi {
 	int (*object_set_position)(SmsObject obj, const SmsVec3* pos);
 	/* The display name of an area ("Delfino Plaza"), or "". */
 	const char* (*area_name)(int area);
+	/* API 1.2: the stage's trigger volumes ("cubes", SMS_CUBE_*), as the
+	   game's own scripts test them: how many a set has (0 when the stage has
+	   none), and whether point p is in cube `index` of a set (1 or 0; -1:
+	   no such cube). */
+	int (*cube_count)(int set);
+	int (*in_cube)(int set, int index, const SmsVec3* p);
 } SmsGameApi;
+
+/* The game's cube sets (api->game->in_cube). */
+typedef enum SmsCubeSet {
+	SMS_CUBE_CAMERA = 0,  /* camera changes */
+	SMS_CUBE_AREA = 1,    /* the stage's areas */
+	SMS_CUBE_FAST_A = 2,  /* "fast cubes": what event scripts test (a course's start, its checkpoints) */
+	SMS_CUBE_FAST_B = 3,
+	SMS_CUBE_FAST_C = 4,
+	SMS_CUBE_MIRROR = 5,
+	SMS_CUBE_WIRE = 6,
+	SMS_CUBE_STREAM = 7,  /* water currents */
+	SMS_CUBE_SHADOW = 8,
+	SMS_CUBE_SOUND_CHANGE = 9,
+	SMS_CUBE_SOUND_EFFECT = 10
+} SmsCubeSet;
 
 typedef struct SmsPlayer {
 	uint32_t size;       /* set to sizeof before calling player->get */
@@ -638,6 +682,153 @@ typedef struct SmsNativeApi {
 	void* (*get)(const char* name);
 } SmsNativeApi;
 
+/* ------------------------------------------------------------------ multiplayer (API 1.2) */
+
+/* api->net: the multiplayer game this one is in, and, on the host, the word
+ * it sends players' games. A server mod (`side = server` in its mod.ini)
+ * runs on the host only, and players join with the plain game: everything it
+ * shows or does in their games goes through these commands, which every
+ * build of the game carries out (docs/MODDING.md, "Server mods"). */
+
+typedef enum SmsNetRole {
+	SMS_NET_OFF = 0,    /* not in a multiplayer game */
+	SMS_NET_HOST = 1,   /* hosting it (a dedicated server too) */
+	SMS_NET_CLIENT = 2  /* joined someone's */
+} SmsNetRole;
+
+#define SMS_NET_MAX_PLAYERS 8
+#define SMS_NET_SLOT(n) (1u << (n)) /* one player, for `to` */
+#define SMS_NET_ALL 0xFFu           /* every player (the host's own game too) */
+
+typedef enum SmsNetCharacter {
+	SMS_NET_CHAR_MARIO = 0, SMS_NET_CHAR_LUIGI, SMS_NET_CHAR_WARIO, SMS_NET_CHAR_METAL_MARIO,
+	SMS_NET_CHAR_FIRE_MARIO, SMS_NET_CHAR_PURPLE_MARIO, SMS_NET_CHAR_ORANGE_MARIO, SMS_NET_CHAR_ICE_MARIO
+} SmsNetCharacter;
+
+/* SmsNetPlayer.flags */
+#define SMS_NETP_VISIBLE    1u   /* in play and drawn */
+#define SMS_NETP_SURFING    2u   /* riding a Blooper */
+#define SMS_NETP_YOSHI      4u   /* riding Yoshi */
+#define SMS_NETP_SPECTATING 8u   /* out of lives, watching */
+#define SMS_NETP_PAUSED     16u  /* their game is paused */
+#define SMS_NETP_CUTSCENE   32u  /* in a cutscene */
+
+typedef struct SmsNetPlayer {
+	uint32_t size;     /* set to sizeof before calling net->player */
+	int slot;
+	int server;        /* the dedicated server itself: no player (slot 0) */
+	int character;     /* SMS_NET_CHAR_* */
+	char name[24];
+	SmsColor color;    /* their character's colour, for text about them */
+	int in_stage;      /* host: arrived in the stage session it plays */
+	SmsVec3 position;  /* where they are, as their last update said */
+	float yaw;         /* their facing, degrees as SmsPlayer's */
+	uint32_t flags;    /* SMS_NETP_* */
+	int ping;          /* round trip to them (host) or the host (client), ms; -1 unknown */
+} SmsNetPlayer;
+
+/* Commands: what the host's server mod has players' games do. Each fills
+ * the fields its type names below; the rest are ignored.
+ *   to:        the players (SMS_NET_ALL, SMS_NET_SLOT(n), or bits ORed);
+ *              the host's own game carries out its own bit (slot 0) too.
+ *   delay_ms:  carried out this long after it was sent, at the same moment
+ *              in every game (each takes off half its round trip): a start
+ *              lined up across the players.
+ *   flags:     SMS_CMD_STICKY: kept for the stage session, and carried out
+ *              again for each player who arrives in it later (a newcomer, a
+ *              player back after falling in). A sticky command replaces the
+ *              last one of its kind (its type; for ACTORS, its type range;
+ *              for STOP_SCRIPT, its script). */
+typedef enum SmsCmdType {
+	/* Big text in the middle of the screen, in color (i[0], 0xRRGGBBAA);
+	   text "" hides it. */
+	SMS_CMD_BANNER = 1,
+	/* A line of news at the top for a few seconds: text. */
+	SMS_CMD_NOTICE = 2,
+	/* A standing line at the top, shown when there is no news: text ("": none). */
+	SMS_CMD_STATUS = 3,
+	/* The HUD's clock: i[0] SMS_TIMER_*, i[1] its time in hundredths of a
+	   second, from which it counts on by itself. */
+	SMS_CMD_TIMER = 4,
+	/* The game's "Ready..." then "Go!", "Go!" i[0] ms after the command is
+	   carried out (each game starts "Ready..." as long before as its frame
+	   rate needs: about 2 s at 30 fps, 1 s at 60). */
+	SMS_CMD_READY_GO = 5,
+	/* A sound: i[0] a system sound (audio->play_system_sound's numbers,
+	   SMS_SOUND_*; an unsigned number stored in the int). */
+	SMS_CMD_SOUND = 6,
+	/* Music: i[0] the game's background music id (MSD_BGM_*, an unsigned
+	   number stored in the int: SMS_MUSIC_*); 0 stops the music a command started. */
+	SMS_CMD_MUSIC = 7,
+	/* The player to f[0..2] facing f[3] degrees (as a warp pipe puts them). */
+	SMS_CMD_WARP = 8,
+	/* i[0] 1: the player's controls do nothing (and a Blooper they ride stops); 0: theirs again. */
+	SMS_CMD_HOLD = 9,
+	/* The player onto a Blooper of their own game, at f[0..2] facing f[3]:
+	   the first of actor types i[0] to i[1] that is free (0x400000C5 to
+	   0x400000C7: red, yellow, green), brought out if hidden. */
+	SMS_CMD_MOUNT = 10,
+	/* i[0] a slot: the player's camera rides with that player, theirs out of
+	   play, as a player out of lives watches; -1: back in play where they are. */
+	SMS_CMD_WATCH = 11,
+	/* The stage's actors of types i[0] to i[1] (TLiveActor::getActorType;
+	   Shines are 0x20000013): i[2] SMS_ACTORS_*. */
+	SMS_CMD_ACTORS = 12,
+	/* Stop the stage's event script loaded from text (its resource path,
+	   "/scene/map/sp/gessoride.sb"): the time trial of a course, a story event. */
+	SMS_CMD_STOP_SCRIPT = 13,
+	/* i[0] 1: the player stays in this stage: their own ways out (pipes,
+	   doors, Exit Area) lead nowhere, and only the host moves them on; 0: free. */
+	SMS_CMD_STAY = 14
+} SmsCmdType;
+
+#define SMS_CMD_STICKY 1u
+
+/* Some of the game's music (SMS_CMD_MUSIC) */
+#define SMS_MUSIC_EVENT        ((int32_t)0x8001001Fu) /* a race's, a timed event's */
+#define SMS_MUSIC_FANFARE_RACE ((int32_t)0x80010026u) /* a race won */
+
+/* SMS_CMD_TIMER's i[0] */
+#define SMS_TIMER_HIDE  0
+#define SMS_TIMER_SHOW  1  /* stopped at i[1] */
+#define SMS_TIMER_UP    2  /* counting up from i[1] */
+#define SMS_TIMER_DOWN  3  /* counting down from i[1] to 0 */
+
+/* SMS_CMD_ACTORS's i[2] */
+#define SMS_ACTORS_SHOW 0  /* as the stage has them */
+#define SMS_ACTORS_HIDE 1  /* out of the stage (unseen, touching nothing), until shown */
+#define SMS_ACTORS_KILL 2  /* gone for this stage (a Shine nobody should get) */
+
+typedef struct SmsCmd {
+	uint32_t size;     /* sizeof(SmsCmd) */
+	uint32_t type;     /* SMS_CMD_* */
+	uint32_t flags;    /* SMS_CMD_STICKY */
+	uint32_t delay_ms;
+	int32_t i[4];
+	float f[4];
+	const char* text;  /* copied; at most 159 bytes are sent */
+} SmsCmd;
+
+typedef struct SmsNetApi {
+	uint32_t size;
+	int (*role)(void);              /* SMS_NET_* */
+	int (*dedicated)(void);         /* the host is a server, not a player */
+	int (*local_slot)(void);        /* this game's player; -1 before a client has one */
+	uint32_t (*players)(void);      /* bit n: slot n is in the game (a server's slot 0 too) */
+	int (*player)(int slot, SmsNetPlayer* out); /* 1 when that slot is in the game */
+	uint32_t (*session)(void);      /* the stage session played (0: none) */
+	/* Host only (0 elsewhere): commands to players' games. Returns the
+	   players it went to. */
+	uint32_t (*send)(uint32_t to, const SmsCmd* cmd);
+	/* Host: everyone to that stage, afresh (a new session, even for the
+	   stage played now). A dedicated server waiting at the title goes there. */
+	int (*load_stage)(int area, int episode);
+	/* Host: what the launcher's list of games shows: the game mode's name
+	   ("squid-race", at most 15 bytes) and a line of its state. */
+	void (*set_mode)(const char* name);
+	void (*set_status)(const char* text);
+} SmsNetApi;
+
 struct SmsApi {
 	uint32_t size;
 	uint16_t major, minor;
@@ -650,6 +841,7 @@ struct SmsApi {
 	const SmsConfigApi* config;
 	const SmsAudioApi* audio;
 	const SmsNativeApi* native;
+	const SmsNetApi* net;           /* API 1.2 (SMS_API_HAS(api, net)) */
 };
 
 /* ------------------------------------------------------------------ the mod's side */

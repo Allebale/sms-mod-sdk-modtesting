@@ -2,6 +2,15 @@
 
 A release's tag is the API version (`v1.1.0` is API 1.1). Within a major version the API only grows; see [Compatibility](docs/MODDING.md#compatibility).
 
+## 1.2.0
+
+Multiplayer, and server mods: mods that run only on the host of a multiplayer game, a dedicated server as a rule, while the players join with the plain game (docs/MODDING.md, "Server mods").
+
+- `api->net` (`SmsNetApi`): the game's role (host, client), whether the host is a dedicated server, the players (`SmsNetPlayer`: name, character, colour, where they are, whether they are in the stage), and on the host: commands to the players' games (`net->send`, `SmsCmd`: banner, notice, standing line, the HUD's clock, "Ready... Go!", sound, music, warp, hold, onto a Blooper, watch a player, the stage's actors shown, hidden or killed, an event script stopped, staying in the stage; each with a delay lined up across the games, and sticky for the session), a stage afresh for everyone (`net->load_stage`), and the game mode's name and state for the launcher's list.
+- Events `SMS_EV_NET_PLAYER_JOINED`, `SMS_EV_NET_PLAYER_LEFT`, `SMS_EV_NET_PLAYER_ARRIVED`, `SMS_EV_NET_SESSION`.
+- `mod.ini`'s `side = server`: a mod that loads only in a hosting game.
+- `game->cube_count`, `game->in_cube`: the stage's trigger volumes (camera, area and the event scripts' "fast cubes"), as the game's scripts test them.
+
 ## 1.1.1
 
 - The lua mod's Linux libraries load on glibc 2.35 and newer (Ubuntu 22.04, Debian 12, SteamOS); 1.1.0's needed 2.38. CI builds Linux mods on Ubuntu 22.04, and the templates' workflows do too.
