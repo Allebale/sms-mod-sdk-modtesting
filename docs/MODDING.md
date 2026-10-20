@@ -373,7 +373,7 @@ The drawing appears in the window (and `SMS_WINDOW_SHOTS` captures), not in `SMS
 Colours are `0xRRGGBBAA`: `SMS_RGB(r, g, b)` and `SMS_RGBA(r, g, b, a)`.
 
 **HUD slots.** The canvas has nine anchors, `SMS_ANCHOR_TOP_LEFT` to `SMS_ANCHOR_BOTTOM_RIGHT`.
-Each frame, `hud_slot` hands out rectangles at an anchor one below the other (above the other at the bottom anchors) in the order the mods ask, 6 units apart, and returns 0 when the next one would not fit.
+Each frame, `hud_slot` hands out rectangles at an anchor one below the other (above the other at the bottom anchors) in the order the mods ask, 6 units apart, and returns 0 when the next one would not fit: past the canvas's edge, or into the panels another anchor on the same side gave out (a side's top and bottom stacks never meet).
 The stacks start clear of the game's HUD: the left column below the Shine and coin counters, the top middle below the lives, the right column below the health meter, and the bottom ones above the water gauge and the talk boxes.
 Panels that ask every frame and are hidden by skipping the call let the others move into their place.
 
