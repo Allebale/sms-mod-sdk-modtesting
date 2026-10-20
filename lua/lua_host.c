@@ -218,6 +218,10 @@ static const struct {
 	{"object_move", SMS_EV_OBJECT_MOVE},
 	{"mod_loaded", SMS_EV_MOD_LOADED},
 	{"shutdown", SMS_EV_SHUTDOWN},
+	{"net_player_joined", SMS_EV_NET_PLAYER_JOINED},
+	{"net_player_left", SMS_EV_NET_PLAYER_LEFT},
+	{"net_player_arrived", SMS_EV_NET_PLAYER_ARRIVED},
+	{"net_session", SMS_EV_NET_SESSION},
 };
 
 static const char* const kModes[] = {"boot", "title", "menu", "stage", "movie", "other"};
@@ -425,6 +429,22 @@ static void pushEvent(lua_State* L, const SmsEvent* ev)
 		setstr(L, "id", p->id);
 		setstr(L, "name", p->name);
 		setstr(L, "version", p->version);
+		break;
+	}
+	case SMS_EV_NET_PLAYER_JOINED:
+	case SMS_EV_NET_PLAYER_LEFT:
+	case SMS_EV_NET_PLAYER_ARRIVED: {
+		const SmsEvNetPlayer* p = (const SmsEvNetPlayer*)d;
+		setint(L, "slot", p->slot);
+		setstr(L, "name", p->name);
+		setint(L, "character", p->character);
+		break;
+	}
+	case SMS_EV_NET_SESSION: {
+		const SmsEvNetSession* p = (const SmsEvNetSession*)d;
+		setint(L, "area", p->area);
+		setint(L, "episode", p->episode);
+		setint(L, "session", p->session);
 		break;
 	}
 	default:
@@ -1139,6 +1159,247 @@ static int l_rgb(lua_State* L)
 	return 1;
 }
 
+/* ------------------------------------------------------------------ sms.net (API 1.2) */
+
+static int hasNet(void) { return SMS_API_HAS(api, net); }
+
+static int n_role(lua_State* L)
+{
+	static const char* const kRole[] = {"off", "host", "client"};
+	const int r = hasNet() ? api->net->role() : 0;
+	lua_pushstring(L, kRole[r >= 0 && r <= 2 ? r : 0]);
+	return 1;
+}
+
+static int n_dedicated(lua_State* L)
+{
+	lua_pushboolean(L, hasNet() && api->net->dedicated());
+	return 1;
+}
+
+static int n_slot(lua_State* L)
+{
+	lua_pushinteger(L, hasNet() ? api->net->local_slot() : -1);
+	return 1;
+}
+
+static int n_session(lua_State* L)
+{
+	lua_pushinteger(L, hasNet() ? api->net->session() : 0);
+	return 1;
+}
+
+/* players() -> {slot, ...}: those in the game (a server's slot 0 too) */
+static int n_players(lua_State* L)
+{
+	const uint32_t bits = hasNet() ? api->net->players() : 0;
+	int n = 0;
+	lua_newtable(L);
+	for (int i = 0; i < SMS_NET_MAX_PLAYERS; i++)
+		if (bits & SMS_NET_SLOT(i)) {
+			lua_pushinteger(L, i);
+			lua_rawseti(L, -2, ++n);
+		}
+	return 1;
+}
+
+/* player(slot) -> a table, or nothing when that slot is not in the game */
+static int n_player(lua_State* L)
+{
+	SmsNetPlayer p;
+	memset(&p, 0, sizeof p);
+	p.size = sizeof p;
+	if (!hasNet() || !api->net->player((int)luaL_checkinteger(L, 1), &p))
+		return 0;
+	lua_createtable(L, 0, 16);
+	setint(L, "slot", p.slot);
+	setbool(L, "server", p.server);
+	setint(L, "character", p.character);
+	setstr(L, "name", p.name);
+	setint(L, "color", (lua_Integer)p.color);
+	setbool(L, "in_stage", p.in_stage);
+	setvec(L, "position", &p.position);
+	setnum(L, "yaw", p.yaw);
+	setbool(L, "visible", (p.flags & SMS_NETP_VISIBLE) != 0);
+	setbool(L, "surfing", (p.flags & SMS_NETP_SURFING) != 0);
+	setbool(L, "yoshi", (p.flags & SMS_NETP_YOSHI) != 0);
+	setbool(L, "spectating", (p.flags & SMS_NETP_SPECTATING) != 0);
+	setbool(L, "paused", (p.flags & SMS_NETP_PAUSED) != 0);
+	setbool(L, "cutscene", (p.flags & SMS_NETP_CUTSCENE) != 0);
+	setint(L, "ping", p.ping);
+	return 1;
+}
+
+/* Whom a command goes to: "all", a slot, or a list of slots. */
+static uint32_t toMask(lua_State* L, int idx)
+{
+	if (lua_type(L, idx) == LUA_TSTRING && !strcmp(lua_tostring(L, idx), "all"))
+		return SMS_NET_ALL;
+	if (lua_isinteger(L, idx)) {
+		const lua_Integer slot = lua_tointeger(L, idx);
+		return slot >= 0 && slot < SMS_NET_MAX_PLAYERS ? SMS_NET_SLOT(slot) : 0;
+	}
+	uint32_t bits = 0;
+	if (lua_istable(L, idx)) {
+		for (lua_Integer i = 1; lua_geti(L, idx, i) == LUA_TNUMBER; i++) {
+			const lua_Integer slot = lua_tointeger(L, -1);
+			if (slot >= 0 && slot < SMS_NET_MAX_PLAYERS)
+				bits |= SMS_NET_SLOT(slot);
+			lua_pop(L, 1);
+		}
+		lua_pop(L, 1); /* the nil (or other) that ended the list */
+	}
+	return bits;
+}
+
+static lua_Integer fieldint(lua_State* L, int t, const char* k, lua_Integer def)
+{
+	lua_getfield(L, t, k);
+	const lua_Integer v = lua_isnumber(L, -1) ? (lua_Integer)lua_tonumber(L, -1) : def;
+	lua_pop(L, 1);
+	return v;
+}
+
+static int fieldbool(lua_State* L, int t, const char* k)
+{
+	lua_getfield(L, t, k);
+	const int v = lua_toboolean(L, -1);
+	lua_pop(L, 1);
+	return v;
+}
+
+/* A name among `names` (its index), or `def`. */
+static int fieldchoice(lua_State* L, int t, const char* k, const char* const* names, int count, int def)
+{
+	lua_getfield(L, t, k);
+	int v = def;
+	if (lua_type(L, -1) == LUA_TSTRING) {
+		for (int i = 0; i < count; i++)
+			if (!strcmp(lua_tostring(L, -1), names[i]))
+				v = i;
+	} else if (lua_isnumber(L, -1)) {
+		v = (int)lua_tointeger(L, -1);
+	}
+	lua_pop(L, 1);
+	return v;
+}
+
+/* send(to, {type = "banner", text = ..., ...}) -> the slots it went to.
+   The fields each type takes are in docs/MODDING.md ("Server mods"). */
+static int n_send(lua_State* L)
+{
+	static const char* const kTypes[] = {"", "banner", "notice", "status", "timer", "ready_go", "sound", "music",
+	                                     "warp", "hold", "mount", "watch", "actors", "stop_script", "stay"};
+	static const char* const kTimer[]  = {"hide", "show", "up", "down"};
+	static const char* const kActors[] = {"show", "hide", "kill"};
+	luaL_checktype(L, 2, LUA_TTABLE);
+	const uint32_t to = toMask(L, 1);
+	SmsCmd c;
+	SmsVec3 at = {0, 0, 0};
+	memset(&c, 0, sizeof c);
+	c.size = sizeof c;
+	c.type = (uint32_t)fieldchoice(L, 2, "type", kTypes, (int)(sizeof kTypes / sizeof kTypes[0]), 0);
+	if (!c.type || c.type > SMS_CMD_STAY)
+		return luaL_error(L, "sms.net.send: no such command type");
+	c.flags    = fieldbool(L, 2, "sticky") ? SMS_CMD_STICKY : 0;
+	c.delay_ms = (uint32_t)(fieldnum(L, 2, "delay", 0) * 1000.0f);
+	lua_getfield(L, 2, "text");
+	c.text = lua_tostring(L, -1); /* kept on the stack until sent */
+	lua_getfield(L, 2, "position");
+	tovec(L, -1, &at);
+	lua_pop(L, 1);
+	switch (c.type) {
+	case SMS_CMD_BANNER: c.i[0] = (int32_t)fieldint(L, 2, "color", (lua_Integer)SMS_RGB(255, 255, 255)); break;
+	case SMS_CMD_TIMER:
+		c.i[0] = fieldchoice(L, 2, "mode", kTimer, 4, SMS_TIMER_SHOW);
+		c.i[1] = (int32_t)(fieldnum(L, 2, "seconds", 0) * 100.0f);
+		break;
+	case SMS_CMD_READY_GO: c.i[0] = (int32_t)(fieldnum(L, 2, "go_in", 0) * 1000.0f); break;
+	case SMS_CMD_SOUND:
+	case SMS_CMD_MUSIC: c.i[0] = (int32_t)(uint32_t)fieldint(L, 2, "id", 0); break;
+	case SMS_CMD_MOUNT:
+		c.i[0] = (int32_t)fieldint(L, 2, "from", 0x400000C5);
+		c.i[1] = (int32_t)fieldint(L, 2, "to", 0x400000C7);
+		/* fall through */ /* (the place) */
+	case SMS_CMD_WARP:
+		c.f[0] = at.x;
+		c.f[1] = at.y;
+		c.f[2] = at.z;
+		c.f[3] = fieldnum(L, 2, "yaw", 0);
+		break;
+	case SMS_CMD_HOLD:
+	case SMS_CMD_STAY: c.i[0] = fieldbool(L, 2, "on"); break;
+	case SMS_CMD_WATCH: c.i[0] = (int32_t)fieldint(L, 2, "slot", -1); break;
+	case SMS_CMD_ACTORS:
+		c.i[0] = (int32_t)(uint32_t)fieldint(L, 2, "from", 0);
+		c.i[1] = (int32_t)(uint32_t)fieldint(L, 2, "to", c.i[0]);
+		c.i[2] = fieldchoice(L, 2, "state", kActors, 3, SMS_ACTORS_HIDE);
+		break;
+	default: break;
+	}
+	lua_pushinteger(L, hasNet() ? (lua_Integer)api->net->send(to, &c) : 0);
+	return 1;
+}
+
+static int n_load_stage(lua_State* L)
+{
+	lua_pushboolean(L, hasNet() && api->net->load_stage((int)luaL_checkinteger(L, 1), (int)luaL_optinteger(L, 2, 0)));
+	return 1;
+}
+
+static int n_set_mode(lua_State* L)
+{
+	if (hasNet())
+		api->net->set_mode(luaL_checkstring(L, 1));
+	return 0;
+}
+
+static int n_set_status(lua_State* L)
+{
+	if (hasNet())
+		api->net->set_status(luaL_checkstring(L, 1));
+	return 0;
+}
+
+static const luaL_Reg kNet[] = {
+	{"role", n_role}, {"dedicated", n_dedicated}, {"slot", n_slot}, {"session", n_session},
+	{"players", n_players}, {"player", n_player}, {"send", n_send}, {"load_stage", n_load_stage},
+	{"set_mode", n_set_mode}, {"set_status", n_set_status},
+	{NULL, NULL},
+};
+
+/* The stage's trigger volumes: in_cube(set, index, position) -> true/false (nil: no such cube) */
+static const char* const kCubeSets[] = {"camera", "area",   "fast_a", "fast_b", "fast_c",      "mirror",
+                                        "wire",   "stream", "shadow", "sound_change", "sound_effect"};
+static int cubeSet(lua_State* L, int idx)
+{
+	if (lua_isinteger(L, idx))
+		return (int)lua_tointeger(L, idx);
+	const char* name = luaL_checkstring(L, idx);
+	for (int i = 0; i < (int)(sizeof kCubeSets / sizeof kCubeSets[0]); i++)
+		if (!strcmp(name, kCubeSets[i]))
+			return i;
+	return luaL_error(L, "no cube set \"%s\"", name);
+}
+
+static int l_cube_count(lua_State* L)
+{
+	lua_pushinteger(L, SMS_API_HAS(api->game, cube_count) ? api->game->cube_count(cubeSet(L, 1)) : 0);
+	return 1;
+}
+
+static int l_in_cube(lua_State* L)
+{
+	const int set   = cubeSet(L, 1);
+	const int index = (int)luaL_checkinteger(L, 2);
+	const SmsVec3 p = checkvec(L, 3);
+	const int r     = SMS_API_HAS(api->game, in_cube) ? api->game->in_cube(set, index, &p) : -1;
+	if (r < 0)
+		return 0;
+	lua_pushboolean(L, r);
+	return 1;
+}
+
 static const luaL_Reg kSms[] = {
 	{"on", l_on}, {"off", l_off}, {"log", l_log}, {"warn", l_warn}, {"error", l_error}, {"debug", l_debug},
 	{"event_id", l_event_id}, {"emit", l_emit}, {"time", l_time}, {"is_loaded", l_is_loaded},
@@ -1153,6 +1414,7 @@ static const luaL_Reg kSms[] = {
 	{"key_name", l_key_name}, {"bind_key", l_bind_key}, {"capture", l_capture}, {"captured_by", l_captured_by},
 	{"setting", l_setting}, {"set_setting", l_set_setting}, {"save_settings", l_save_settings},
 	{"option", l_option}, {"rgb", l_rgb}, {"rgba", l_rgb},
+	{"cube_count", l_cube_count}, {"in_cube", l_in_cube},
 	{NULL, NULL},
 };
 
@@ -1181,6 +1443,7 @@ static void constants(lua_State* L)
 		{"SOUND_CURSOR", SMS_SOUND_CURSOR}, {"SOUND_DECIDE", SMS_SOUND_DECIDE}, {"SOUND_CANCEL", SMS_SOUND_CANCEL},
 		{"SOUND_COIN", SMS_SOUND_COIN}, {"SOUND_NEWS", SMS_SOUND_NEWS}, {"SOUND_SHINE", SMS_SOUND_SHINE},
 		{"SOUND_DAMAGE", SMS_SOUND_DAMAGE}, {"SOUND_HEAL", SMS_SOUND_HEAL}, {"SOUND_APPEAR", SMS_SOUND_APPEAR},
+		{"MUSIC_EVENT", (lua_Integer)(uint32_t)SMS_MUSIC_EVENT}, {"MUSIC_FANFARE_RACE", (lua_Integer)(uint32_t)SMS_MUSIC_FANFARE_RACE},
 	};
 	for (size_t i = 0; i < sizeof k / sizeof k[0]; i++) {
 		lua_pushinteger(L, k[i].v);
@@ -1193,6 +1456,8 @@ static void openSms(lua_State* L, Script* s)
 	luaL_newlib(L, kSms);
 	luaL_newlib(L, kDraw);
 	lua_setfield(L, -2, "draw");
+	luaL_newlib(L, kNet);
+	lua_setfield(L, -2, "net");
 	constants(L);
 	setstr(L, "id", api->core->mod_id(s->mod));
 	setstr(L, "dir", api->core->mod_dir(s->mod));

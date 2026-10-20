@@ -6,7 +6,7 @@ It hears of what happens in the game (a stage loads, Mario jumps, a coin is take
 Several mods run together.
 They all go through the same API, which puts their handlers in order, stacks their panels instead of letting them overlap, warns about keys two of them want, and hands the controllers to one menu at a time.
 
-This page is the whole manual: how to [write one](#quick-start), [what a mod folder holds](#the-mod-folder), [how mods live together](#living-together), the [events](#events) and [functions](#the-api) in full, mods [in Lua](#lua-scripts), [game numbers](#game-reference) such as stage and flag ids, [debugging](#debugging), and the [design](#design-notes) behind it all, including what is planned.
+This page is the whole manual: how to [write one](#quick-start), [what a mod folder holds](#the-mod-folder), [how mods live together](#living-together), the [events](#events) and [functions](#the-api) in full, mods [in Lua](#lua-scripts), [server mods](#server-mods) that run a multiplayer game mode from the host, [game numbers](#game-reference) such as stage and flag ids, [debugging](#debugging), and the [design](#design-notes) behind it all, including what is planned.
 
 The API itself is one C header, [`include/sms_mod.h`](../include/sms_mod.h), with every function and payload documented where it is declared. [`include/sms_mod.hpp`](../include/sms_mod.hpp) adds a header-only C++ layer. Complete example mods, and templates to start your own from, are in [sms-mod-templates](https://github.com/chasem-dev/sms-mod-templates).
 
@@ -23,13 +23,14 @@ Contents:
 [Settings and the Mods menu](#settings-and-the-mods-menu) ·
 [Talking to other mods](#talking-to-other-mods) ·
 [Lua scripts](#lua-scripts) ·
+[Server mods](#server-mods) ·
 [Time, units and frame rate](#time-units-and-frame-rate) ·
 [Multiplayer, save states, Eclipse](#multiplayer-save-states-and-eclipse) ·
 [Game reference](#game-reference) ·
 [Debugging](#debugging) ·
 [Compatibility](#compatibility) ·
 [Design notes](#design-notes) ·
-[Adding to the API](#adding-to-the-api-port-developers)
+[Adding to the API](#adding-to-the-api)
 
 ## Languages
 
@@ -106,7 +107,7 @@ The game never builds this crate itself; this outline has not been run against a
    include(FetchContent)
    FetchContent_Declare(sms_mod_sdk
      GIT_REPOSITORY https://github.com/chasem-dev/sms-mod-sdk.git
-     GIT_TAG v1.1.1)
+     GIT_TAG v1.2.0)
    FetchContent_MakeAvailable(sms_mod_sdk)
    sms_add_mod(mod src/my_mod.c)
    ```
@@ -199,6 +200,7 @@ A mod folder may sit beside the other things in `mods/` (texture packs, Eclipse,
 | `runtime` | A script mod: the language that runs it (`lua`). It has no library; the native mod hosting that runtime starts it ([Lua scripts](#lua-scripts)). | |
 | `script` | A script mod's file, in its folder. | `main.<runtime>` |
 | `gameplay` | `1` when the mod changes how the game plays (rather than only showing things). The log lists such mods; multiplayer will compare them between players (see [Multiplayer](#multiplayer-save-states-and-eclipse)). | `0` |
+| `side` | `server`: a [server mod](#server-mods), loaded only in a game hosting multiplayer (players need nothing); `local`: wherever it is installed. | `local` |
 
 ## Life of a mod
 
@@ -265,6 +267,9 @@ Subscribe with `core->subscribe(mod, type, fn, user, priority)`; `fn(mod, ev, us
 | `SMS_EV_OBJECT_MOVE` | an object is about to move this tick (`after` 0), or has (`after` 1) | `SmsEvObjectMove` object, after | (many per tick: subscribe only when needed) |
 | `SMS_EV_MOD_LOADED` | another mod loaded; on subscribing, once for each mod already loaded | `SmsEvMod` id, name, version | |
 | `SMS_EV_SHUTDOWN` | the game is closing | none | save |
+| `SMS_EV_NET_PLAYER_JOINED`, `_LEFT` | a player joined or left a multiplayer game | `SmsEvNetPlayer` | |
+| `SMS_EV_NET_PLAYER_ARRIVED` | (host) a player arrived in the stage session it plays | `SmsEvNetPlayer` | bring them up to date ([Server mods](#server-mods)) |
+| `SMS_EV_NET_SESSION` | (host) a new stage session, which everyone follows | `SmsEvNetSession` | set the stage up |
 | `SMS_EV_CUSTOM_BASE` and up | mods' own events, from `core->event_id(name)` | whatever the sender says | cancel |
 
 Notes:
@@ -290,6 +295,7 @@ Notes:
 | `api->config` | settings and the Mods menu's options |
 | `api->audio` | the game's sound effects |
 | `api->native` | the game's own objects, for mods built against the decomp's headers |
+| `api->net` | (1.2) the multiplayer game: its players, and on the host the commands to their games ([Server mods](#server-mods)) |
 
 Every table starts with `size`, the size the game was built with. Tables only grow at their ends, so a mod checks a function from a later minor version is there with `SMS_API_HAS(api->draw, some_new_function)` before calling it.
 Structs a mod passes in for the game to fill (`SmsGameState`, `SmsPlayer`, `SmsCamera`, `SmsPad`) start with a `size` the mod sets to `sizeof` the struct; the game fills only that much, so an old mod works with a newer game and the other way round.
@@ -347,7 +353,7 @@ See [Drawing](#drawing), [Input](#input), [Settings](#settings-and-the-mods-menu
 
 For mods that go beyond the API: `native->get("gpMarioOriginal")` (also `gpMarDirector`, `gpApplication`, `gpCamera`, `gpItemManager`, `gpMap`, `TFlagManager`) returns the game's own object.
 Reading it needs the decomp's headers and the same compiler, pointer size and layout as the game, which change between builds: check `native->build()` (`<commit>/<platform>`) against the one you built for, and refuse to load otherwise.
-Prefer asking for the event or function you need (see [Adding to the API](#adding-to-the-api-port-developers)).
+Prefer asking for the event or function you need (see [Adding to the API](#adding-to-the-api)).
 
 ## Drawing
 
@@ -494,7 +500,7 @@ They have Lua's whole standard library, `io` and `os` included, so a script mod 
 ### Events in Lua
 
 `sms.on(name, function(ev) ... end [, priority])` subscribes and returns a handle for `sms.off(handle)`.
-The names are the C events' without `SMS_EV_`, in lower case: `frame`, `tick`, `draw`, `stage_loaded`, `stage_exit_request`, `stage_leaving`, `life_lost`, `game_over`, `coins_reset`, `file_selected`, `item_collected`, `pad_read`, `key`, `cutscene`, `goop_cleaned`, `object_hit`, `save_state_request`, `hide_player_model`, `player_status`, `player_damage`, `shine_collected`, `camera`, `object_move`, `mod_loaded`, `shutdown`.
+The names are the C events' without `SMS_EV_`, in lower case: `frame`, `tick`, `draw`, `stage_loaded`, `stage_exit_request`, `stage_leaving`, `life_lost`, `game_over`, `coins_reset`, `file_selected`, `item_collected`, `pad_read`, `key`, `cutscene`, `goop_cleaned`, `object_hit`, `save_state_request`, `hide_player_model`, `player_status`, `player_damage`, `shine_collected`, `camera`, `object_move`, `mod_loaded`, `shutdown`, and for multiplayer `net_player_joined`, `net_player_left`, `net_player_arrived`, `net_session` (`{slot, name, character}`; the session's `{area, episode, session}`).
 Any other name is a custom event (`"stage-timer.split"`).
 Priorities: `sms.FIRST`, `sms.EARLY`, `sms.NORMAL` (the default), `sms.LATE`, `sms.MONITOR`.
 
@@ -562,6 +568,20 @@ Objects are light userdata, for `sms.object_name`, `sms.object_position` and `sm
 | `sms.set_setting(key, value)`, `sms.save_settings()` | change one; write them now |
 | `sms.option{key, label, type, default, min, max, step, choices, on_change}` | a setting in the Mods menu; `type` is `"bool"`, `"int"`, `"float"`, `"choice"` (with `choices = {"a", "b"}`) or `"action"`; `on_change(key)` after each change |
 | `sms.rgb(r, g, b)`, `sms.rgba(r, g, b, a)` | colours (or write `0xRRGGBBAA`) |
+| `sms.cube_count(set)`, `sms.in_cube(set, index, pos)` | the stage's trigger cubes: how many a set has; whether a point is in one (`nil`: no such cube). Sets: `"camera"`, `"area"`, `"fast_a"`, `"fast_b"`, `"fast_c"`, `"mirror"`, `"wire"`, `"stream"`, `"shadow"`, `"sound_change"`, `"sound_effect"` |
+
+`sms.net` is the multiplayer game ([Server mods](#server-mods)):
+
+| Function | |
+| --- | --- |
+| `sms.net.role()`, `sms.net.dedicated()`, `sms.net.slot()`, `sms.net.session()` | `"off"`, `"host"` or `"client"`; the host is a server; this game's slot; the stage session |
+| `sms.net.players()` | the slots in the game, a list |
+| `sms.net.player(slot)` | `nil`, or `{slot, server, character, name, color, in_stage, position, yaw, visible, surfing, yoshi, spectating, paused, cutscene, ping}` |
+| `sms.net.send(to, cmd)` | host: a [command](#commands) to `"all"`, a slot or a list of slots, as `{type = "banner", text = ..., color = ..., delay = seconds, sticky = true}`; returns the slots it went to as bits |
+| `sms.net.load_stage(area [, episode])` | host: everyone to that stage afresh |
+| `sms.net.set_mode(name)`, `sms.net.set_status(text)` | host: what the launcher's list of games shows |
+
+Constants for commands: `sms.MUSIC_EVENT`, `sms.MUSIC_FANFARE_RACE` (and the `SOUND_*` above).
 
 `sms.draw` mirrors the [C drawing](#drawing), in canvas units, only inside `draw` handlers. Colours default to white.
 
@@ -597,6 +617,196 @@ and a script can send one a C mod reads: `sms.emit("my-script.score", string.pac
 The lua mod is an ordinary native mod using two functions any mod can: `core->host_runtime(mod, "lua", start, stop, user)` makes it the runner of `runtime = lua` mods, and `core->mod_info(script, "script")` names a script's file.
 A mod embedding another language (Python, Wren, JavaScript) does the same with its own runtime name; the game gives each script mod its own `SmsMod`, so whatever the script calls through the API is its own.
 
+## Server mods
+
+A **server mod** runs on the host of a multiplayer game only, a dedicated server as a rule, and players join with the plain game: nothing to install. It is how a game mode is made: the [Squid Race](https://github.com/chasem-dev/sms-mod-templates/tree/main/examples/squid-race) (C) and [Red Light, Green Light](https://github.com/chasem-dev/sms-mod-templates/tree/main/examples/lua-red-light) (Lua) are two.
+
+It works as a Minecraft server's plugins do. The server decides **when** and **where**: the rules, the clock, who is where, who won. Every player's game decides **how it looks**: it draws the banner, runs the clock, puts its player on the start line and onto a Blooper, with the game's own models, sounds and HUD. What passes between them is a small, fixed set of **commands** that every build of the game carries out, so a server mod can make any number of game modes from them without the players needing anything but the game.
+
+### How it works
+
+```
+  the host: a dedicated server, or a player hosting           each player: the plain game
+  +-----------------------------------------+   commands  +------------------------------+
+  | the stage, loaded (its cubes, its        | ---------> | carries them out: the banner, |
+  |   actors) and every player's updates     |  (net->     |   the clock, warp, hold, onto |
+  | server mods (side = server):             |   send)     |   a Blooper, watch a player,  |
+  |   the rules, the clock, who is where     | <--------- |   the stage's actors...       |
+  |   api->net, game->in_cube                |  where they | and draws it all itself       |
+  +-----------------------------------------+   are, joins +------------------------------+
+```
+
+- The host has the stage loaded as everyone does, so a server mod asks its own copy of the stage (its trigger cubes, `game->in_cube`) about the players, whose positions come from their games' updates, 30 or so a second (`net->player`).
+- The players' games send nothing a server mod wrote: no code, no models, no drawing. Everything they do for it is one of the commands below, all in the game already. A mod's own drawing (`api->draw`) is for the game it runs in only.
+- Players need the same game build as the server, as multiplayer already requires; a game with API 1.2 or later carries out commands. They need no mods.
+
+### A server mod
+
+`side = server` in its `mod.ini` makes a mod a server mod: it loads only in a game hosting multiplayer, and anywhere else the Mods menu lists it, off, saying so. A server mod may be native or Lua (the Lua host must be installed on the server). A player who hosts runs the server mods too, and plays along: commands to slot 0 are carried out in the host's own game.
+
+A **dedicated server** is a host that is not a player (`SMS_MULTIPLAYER_DEDICATED=1`): its own Mario is out of play and unseen, it is not counted among the players, and the first player to join plays Mario. It needs no file: from the title it goes straight to the stage a server mod asks for with `net->load_stage` (or `SMS_MULTIPLAYER_STAGE=area,episode`, else Delfino Plaza):
+
+```sh
+SMS_HEADLESS=1 SMS_AUDIO=0 SMS_TEXTURE_PACKS=0 \
+SMS_MULTIPLAYER=host SMS_MULTIPLAYER_DEDICATED=1 \
+SMS_NATIVE_MODS_DIR=/path/to/server-mods \
+./sms GMSE01.iso
+```
+
+It needs about 600 MB of memory, and players reach it on UDP 24002 (`SMS_MULTIPLAYER_PORT`), as any hosted game.
+
+Mods load once multiplayer has started, so `net->role()` is right while they load; still, do the server's work in events (`SMS_EV_FRAME`, the `SMS_EV_NET_*` events) rather than in `sms_mod_load`.
+
+### api->net
+
+| Function | |
+| --- | --- |
+| `role()` | `SMS_NET_OFF`, `SMS_NET_HOST` or `SMS_NET_CLIENT` |
+| `dedicated()` | the host is a server, not a player |
+| `local_slot()` | this game's player (0 is the host); -1 before a client has a slot |
+| `players()` | bit n set: slot n is in the game (a server's slot 0 too) |
+| `player(slot, &p)` | 1 and `SmsNetPlayer p` filled when that slot is in the game (set `p.size` first) |
+| `session()` | the stage session being played (0: none). Each time the host starts a stage, or loads it afresh, it opens a new one |
+| `send(to, &cmd)` | host: a command to players' games; returns the players it went to |
+| `load_stage(area, episode)` | host: everyone to that stage afresh, a new session even for the stage played now. A dedicated server at the title goes there; a hosting player, after the file select |
+| `set_mode(name)`, `set_status(text)` | host: what the launcher's list of games shows, the mode's name (`"squid-race"`, 15 characters) and a line of its state (`"Squid Race: racing"`) |
+
+`SmsNetPlayer`:
+
+| Field | |
+| --- | --- |
+| `slot`, `server` | its slot; whether it is the dedicated server itself (no player) |
+| `character`, `name`, `color` | `SMS_NET_CHAR_*` (Mario, Luigi, Wario, Metal, Fire, Purple, Orange, Ice); the name they chose, else the character's; the character's colour for text about them |
+| `in_stage` | (host) arrived in the session it plays. A player loading, or still in the last stage, is not |
+| `position`, `yaw` | where they are and which way they face, as their last update said |
+| `flags` | `SMS_NETP_VISIBLE` (in play), `SURFING` (on a Blooper), `YOSHI`, `SPECTATING` (out of lives), `PAUSED`, `CUTSCENE` |
+| `ping` | round trip in ms (-1 unknown) |
+
+### Commands
+
+`net->send(to, &cmd)`: `to` is `SMS_NET_ALL`, `SMS_NET_SLOT(n)`, or slots ORed together. An `SmsCmd` (`size = sizeof(SmsCmd)`, then `type`) fills the fields its type names; Lua's `sms.net.send(to, { type = "...", ... })` takes the named fields, and `to` as `"all"`, a slot, or a list of slots.
+
+| Type | C fields | Lua fields | In each player's game |
+| --- | --- | --- | --- |
+| `SMS_CMD_BANNER` | `i[0]` colour, `text` | `color`, `text` | big text in the middle, in that colour; `""` hides it |
+| `SMS_CMD_NOTICE` | `text` | `text` | a line of news at the top, for a few seconds |
+| `SMS_CMD_STATUS` | `text` | `text` | a standing line at the top, shown while there is no news; `""` none |
+| `SMS_CMD_TIMER` | `i[0]` `SMS_TIMER_HIDE` / `SHOW` / `UP` / `DOWN`, `i[1]` hundredths | `mode` (`"hide"`, `"show"`, `"up"`, `"down"`), `seconds` | the HUD's clock, stopped at the time or counting up or down from it by itself |
+| `SMS_CMD_READY_GO` | `i[0]` ms until "Go!" | `go_in` (seconds) | the game's "Ready... Go!", "Go!" at that moment whatever the frame rate |
+| `SMS_CMD_SOUND` | `i[0]` a system sound (`SMS_SOUND_*`) | `id` | the sound |
+| `SMS_CMD_MUSIC` | `i[0]` background music (`SMS_MUSIC_*`, the game's `MSD_BGM_*`); 0 stops it | `id` | the music |
+| `SMS_CMD_WARP` | `f[0..2]` place, `f[3]` facing | `position`, `yaw` | the player there, as a warp puts them |
+| `SMS_CMD_HOLD` | `i[0]` 1 or 0 | `on` | the player's controls held (a Blooper they ride stops), or theirs again |
+| `SMS_CMD_MOUNT` | `i[0]..i[1]` actor types, `f[0..2]`, `f[3]` | `from`, `to` (the three Bloopers by default), `position`, `yaw` | the player onto a Blooper of their own game, there |
+| `SMS_CMD_WATCH` | `i[0]` a slot, or -1 | `slot` | the player out of play, the camera riding with that player (as when out of lives); -1: back in play |
+| `SMS_CMD_ACTORS` | `i[0]..i[1]` actor types, `i[2]` `SMS_ACTORS_SHOW` / `HIDE` / `KILL` | `from`, `to`, `state` (`"show"`, `"hide"`, `"kill"`) | the stage's actors of those types: back, out of the stage (unseen, touching nothing) until shown, or gone (a Shine: `0x20000013`) |
+| `SMS_CMD_STOP_SCRIPT` | `text` the script's resource | `text` | the stage's event script loaded from there stopped (`"/scene/map/sp/gessoride.sb"`: Ricco's Blooper course's time trial) |
+| `SMS_CMD_STAY` | `i[0]` 1 or 0 | `on` | the player's own ways out of the stage (pipes, doors, Exit Area) lead nowhere: only the host moves them on |
+
+Every command also takes:
+
+- **`delay_ms`** (Lua `delay`, seconds): carried out that long after it was sent, at the same moment in every game, each taking off half its round trip to the host. Send a start ahead of time with the time left as its delay, and everyone starts together.
+- **`SMS_CMD_STICKY`** (Lua `sticky = true`): kept for the session and carried out again for each player who arrives in it later: a newcomer, or a player back after a lost life (whose stage loads afresh). A sticky command replaces the last one of its kind sent to the same players (of its type; for `ACTORS`, its types; for `STOP_SCRIPT`, its script). It goes at once only to players already in the session; the others get it as they arrive.
+
+A command's effects last for the session it came in: when the host moves everyone on (`load_stage`, or the group leaving through a pipe), each game starts afresh, and the host replays the new session's sticky commands as each player arrives.
+
+### Events
+
+| Event | When | Payload |
+| --- | --- | --- |
+| `SMS_EV_NET_PLAYER_JOINED` | a player joined the game (every game hears it) | `SmsEvNetPlayer`: `slot`, `name`, `character` |
+| `SMS_EV_NET_PLAYER_LEFT` | a player left | `SmsEvNetPlayer` |
+| `SMS_EV_NET_PLAYER_ARRIVED` | (host) a player arrived in the session it plays: just joined, back after a lost life, or following everyone to a new stage. The session's sticky commands have been sent them | `SmsEvNetPlayer` |
+| `SMS_EV_NET_SESSION` | (host) it opened a new session, which everyone follows: set the stage up here | `SmsEvNetSession`: `area`, `episode`, `session` |
+
+In Lua they are `net_player_joined`, `net_player_left`, `net_player_arrived` and `net_session`, with the same fields.
+
+### A small one
+
+A server mod that keeps everyone in Gelato Beach, greets each player, and keeps a line at the top for all. In C:
+
+```c
+#include <sms_mod.h>
+#include <string.h>
+
+static const SmsApi* api;
+
+static void send_text(uint32_t to, uint32_t type, uint32_t flags, const char* text)
+{
+    SmsCmd c;
+    memset(&c, 0, sizeof c);
+    c.size  = sizeof c;
+    c.type  = type;
+    c.flags = flags;
+    c.text  = text;
+    api->net->send(to, &c);
+}
+
+static int on_session(SmsMod* mod, SmsEvent* ev, void* user)
+{
+    SmsCmd stay;
+    (void)mod; (void)ev; (void)user;
+    memset(&stay, 0, sizeof stay);
+    stay.size = sizeof stay; stay.type = SMS_CMD_STAY; stay.flags = SMS_CMD_STICKY; stay.i[0] = 1;
+    api->net->send(SMS_NET_ALL, &stay);
+    send_text(SMS_NET_ALL, SMS_CMD_STATUS, SMS_CMD_STICKY, "Beach party: everyone stays on Gelato Beach");
+    return SMS_CONTINUE;
+}
+
+static int on_arrived(SmsMod* mod, SmsEvent* ev, void* user)
+{
+    const SmsEvNetPlayer* p = (const SmsEvNetPlayer*)ev->data;
+    (void)mod; (void)user;
+    send_text(SMS_NET_SLOT(p->slot), SMS_CMD_NOTICE, 0, "Welcome to the beach party!");
+    return SMS_CONTINUE;
+}
+
+SMS_MOD_DEFINE()
+
+SMS_MOD_EXTERN_C SMS_MOD_EXPORT int sms_mod_load(SmsMod* mod, const SmsApi* a)
+{
+    api = a;
+    if (!SMS_API_HAS(api, net))
+        return 1;
+    api->net->load_stage(4, 0); /* Gelato Beach, for everyone */
+    api->core->subscribe(mod, SMS_EV_NET_SESSION, on_session, NULL, SMS_PRIORITY_NORMAL);
+    api->core->subscribe(mod, SMS_EV_NET_PLAYER_ARRIVED, on_arrived, NULL, SMS_PRIORITY_NORMAL);
+    return 0;
+}
+```
+
+The same in Lua (`runtime = lua`, `side = server`):
+
+```lua
+sms.net.load_stage(4, 0) -- Gelato Beach, for everyone
+
+sms.on("net_session", function()
+  sms.net.send("all", { type = "stay", on = true, sticky = true })
+  sms.net.send("all", { type = "status", text = "Beach party: everyone stays on Gelato Beach", sticky = true })
+end)
+
+sms.on("net_player_arrived", function(ev)
+  sms.net.send(ev.slot, { type = "notice", text = "Welcome to the beach party, " .. ev.name .. "!" })
+end)
+```
+
+### Patterns
+
+- **Set the stage up at `SMS_EV_NET_SESSION`, sticky:** stop its script, hide what should not be there yet, keep players in. Players who arrive later, or come back after a lost life, get it all again.
+- **Judge on the server.** Keep the game mode's state in the mod: the phase, the clock (`core->time()`), each player's progress. Where players are comes from `net->player`; the stage's own trigger cubes say what they are in (`game->in_cube`, as event scripts ask). Tell each player only what they need to see.
+- **Line moments up with `delay_ms`.** The Squid Race sends its start three seconds early (onto a Blooper, the clock, the music), each with the time left as its delay, and puts "Go!" there with `READY_GO`'s time.
+- **React to arrivals.** `SMS_EV_NET_PLAYER_ARRIVED` covers a player joining mid-round and one back after falling in: bring them up to date (the clock as it stands, a Blooper at the start).
+- **Mind the moment after a command.** A player's next update shows what a command did a round trip later; leave a player alone for a moment after warping them (Red Light, Green Light does, for a second and a half).
+- **Lives and flags** are the host's to set (`game->flag_set` on the host): the Squid Race keeps everyone's lives up, so a race has no game over.
+- **Tell the launcher** what is on: `set_mode` once, `set_status` as the state changes.
+
+### Limits, and what is next
+
+- **The commands are what players' games can do.** A new kind of command needs a new game build (an API minor version), and the players need it too, as for any change to the game; a server mod checks `SMS_API_HAS` as any mod does.
+- **No new things in players' worlds yet:** no models, objects or text of the mod's own; it can move, hide and show what the stage has. Planned: spawning the game's own actors, text in the world, and the HUD's other counters.
+- **The host believes players' positions,** as multiplayer believes their games: a changed game could claim to be anywhere. Fine among friends; a public server cannot stop cheating this way.
+- **Players' input** reaches a server mod only through where they are and what they do (their flags). Planned: the buttons each player presses, and companion mods players install alongside (`side = both`), for what a server mod alone cannot show.
+
 ## Time, units and frame rate
 
 - **Frames and ticks.** `SMS_EV_FRAME` and `SMS_EV_DRAW` come once a displayed frame. `SMS_EV_TICK` comes once a simulation step of a stage, `ticks_per_second` (30, 60 or 120, from the port's `frame_rate` setting) times a second while the stage runs, and not while it is paused or loading. Count game time in ticks (or `dt`, the seconds a tick), not in frames.
@@ -607,7 +817,7 @@ A mod embedding another language (Python, Wren, JavaScript) does the same with i
 
 ## Multiplayer, save states and Eclipse
 
-- **Multiplayer** (`ext/multiplayer`) runs one game per player, each with its own mods. Mods that only show things are safe. A mod that changes how the game plays (mark it `gameplay = 1`) can make the players' games disagree unless every player runs it with the same settings; the session does not yet compare mod lists (planned).
+- **Multiplayer** (`ext/multiplayer`) runs one game per player, each with its own mods. Mods that only show things are safe. A mod that changes how the game plays (mark it `gameplay = 1`) can make the players' games disagree unless every player runs it with the same settings; the session does not yet compare mod lists (planned). A game mode for everyone is a [server mod](#server-mods): it runs on the host alone, and the players need nothing.
 - **Save states** capture the game's memory, not the mods'. After a load, a mod's own state (timers, trails) may not match the game; mods that care should check `game->state` and the player each frame rather than trusting what they kept. (A save/load event is planned.)
 - **Super Mario Eclipse** builds run native mods too. `game->state` says `eclipse = 1`; its stages and flags are numbered differently, and its own code patches the game in places, so mods that change gameplay should be tested there.
 
@@ -698,7 +908,7 @@ Bits: `0x800` airborne, `0x2000` swimming, `0x400` running; `status & 0x1C0` is 
 ## Compatibility
 
 - The game loads a mod whose `sms_mod_api_version()` has the game's **major** version; another major is refused with a message.
-- The current version is **1.1** (1.1 added `core->mod_info` and `core->host_runtime`, for script mods).
+- The current version is **1.2** (1.1 added `core->mod_info` and `core->host_runtime`, for script mods; 1.2 added `api->net`, the `SMS_EV_NET_*` events and `game->in_cube`, for [server mods](#server-mods)).
 - **Minor versions only add**: events, functions at the ends of tables, fields at the ends of structs. A mod built for an older minor runs on a newer game unchanged. A mod built for a newer minor runs on an older game if it checks what it uses with `SMS_API_HAS` and `ev->size` (the game logs a note when a mod is newer than it).
 - Nothing in the API depends on the game's internal layout, so game updates (and the decomp's progress) do not break mods. `api->native` is the exception, by design.
 
@@ -731,7 +941,7 @@ New hook points go into `port_ext.h` once and serve both built-in extensions and
 | Sound | `audio->play_system_sound` | sounds placed in the world, a mod's own WAV/OGG, music |
 | Messages and text | | the game's talk boxes and messages |
 | Saving a mod's progress | `config`, `core->data_dir` | per-save-file data; save-state events |
-| Multiplayer-aware mods | | the session comparing `gameplay` mods; mods sending their own messages over it |
+| Multiplayer game modes | [server mods](#server-mods): `api->net`'s players and commands, dedicated servers | spawning actors and text in players' worlds; players' buttons; companion mods (`side = both`); the session comparing `gameplay` mods |
 | Scripting | Lua script mods (the `lua` mod), `core->host_runtime` for other languages | services for scripts; a sandboxed mode for script mods |
 | Anything else | `api->native` + the decomp's headers (same build only) | the code mods' retail-address hooks (`sms_modhook.h`, about 500 places the Eclipse port uses) offered to native mods |
 

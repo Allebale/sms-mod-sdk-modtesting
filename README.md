@@ -6,6 +6,8 @@ A mod is a folder in the game's `mods/` with a `mod.ini`: a native library (C, C
 The game loads every mod at start and gives each the same API, so any number run together: their handlers go in order, their panels stack instead of overlapping, they are warned about keys two of them want, and each gets a row and its settings in the game's **Mods menu** (F1).
 Mods can hear of what happens in the game (a stage loads, Mario jumps, a coin is taken, a key is pressed), read and change it (Mario, the save file's flags, the camera, the controllers), draw over it (panels, text, images, markers in the world) and talk to each other.
 
+**Server mods** run a multiplayer game mode from the host alone, a dedicated server as a rule, while players join with the plain game: the server decides when and where, and each player's game shows it with its own models and HUD ([Server mods](docs/MODDING.md#server-mods)).
+
 **The manual is [docs/MODDING.md](docs/MODDING.md)**: every event and function, the `mod.ini`, Lua, drawing, input, settings, game numbers (stages, flags, items), debugging and the design.
 
 ## Start here: templates and examples
@@ -21,6 +23,8 @@ Templates and examples are in **[sms-mod-templates](https://github.com/chasem-de
 | [`examples/trainer-hud`](https://github.com/chasem-dev/sms-mod-templates/tree/main/examples/trainer-hud) | C, most of the API: a speed panel and graph, a trail and landing ring in the world, coin pop-ups, a field of view setting, invincibility, moon jump, images, options, keys, another mod's events. |
 | [`examples/stage-timer`](https://github.com/chasem-dev/sms-mod-templates/tree/main/examples/stage-timer) | C, made to sit beside others: a panel that stacks under the trainer HUD's, damage watched at `MONITOR` priority, best times in its settings, a custom event other mods can hear. |
 | [`examples/lua-challenges`](https://github.com/chasem-dev/sms-mod-templates/tree/main/examples/lua-challenges) | Lua: a challenge against the clock each time a stage loads, with a panel, world markers, sounds, settings, a key, a module of its own, and the C stage-timer's events. |
+| [`examples/squid-race`](https://github.com/chasem-dev/sms-mod-templates/tree/main/examples/squid-race) | C, **a server mod**: a race round Ricco Harbor's Blooper course for everyone who joins a multiplayer game, run by the host alone; players join with the plain game. |
+| [`examples/lua-red-light`](https://github.com/chasem-dev/sms-mod-templates/tree/main/examples/lua-red-light) | Lua, **a server mod**: Red Light, Green Light for everyone in a multiplayer game. |
 
 ## What is here
 
@@ -45,7 +49,7 @@ project(my_mod C)
 include(FetchContent)
 FetchContent_Declare(sms_mod_sdk
   GIT_REPOSITORY https://github.com/chasem-dev/sms-mod-sdk.git
-  GIT_TAG v1.1.1)
+  GIT_TAG v1.2.0)
 FetchContent_MakeAvailable(sms_mod_sdk)
 
 sms_add_mod(mod src/my_mod.c)   # mod/ holds mod.ini and whatever ships with it
