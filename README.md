@@ -45,7 +45,7 @@ project(my_mod C)
 include(FetchContent)
 FetchContent_Declare(sms_mod_sdk
   GIT_REPOSITORY https://github.com/chasem-dev/sms-mod-sdk.git
-  GIT_TAG v1.1.0)
+  GIT_TAG v1.1.1)
 FetchContent_MakeAvailable(sms_mod_sdk)
 
 sms_add_mod(mod src/my_mod.c)   # mod/ holds mod.ini and whatever ships with it

@@ -6,7 +6,7 @@
 #   include(FetchContent)
 #   FetchContent_Declare(sms_mod_sdk
 #     GIT_REPOSITORY https://github.com/chasem-dev/sms-mod-sdk.git
-#     GIT_TAG v1.1.0)
+#     GIT_TAG v1.1.1)
 #   FetchContent_MakeAvailable(sms_mod_sdk)
 #
 # or include() this file from a copy of the SDK. Then, for each mod:
