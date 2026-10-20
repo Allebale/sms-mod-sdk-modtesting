@@ -78,9 +78,12 @@ typedef struct SmsRect {
 	float x, y, w, h;
 } SmsRect;
 
-/* Is `member` in this table (the game is new enough to have it)? */
+/* Is `member` in this table (the game is new enough to have it)? Plain C and
+   C++, no compiler extensions: the member's offset is taken from its address. */
 #define SMS_API_HAS(table, member) \
-	((table) && (table)->size >= offsetof(__typeof__(*(table)), member) + sizeof((table)->member) && (table)->member)
+	((table) && \
+	 (size_t)(table)->size >= (size_t)((const char*)&(table)->member - (const char*)(table)) + sizeof((table)->member) && \
+	 (table)->member)
 
 typedef enum SmsLogLevel {
 	SMS_LOG_DEBUG = 0, /* shown with SMS_NATIVE_MODS_DEBUG=1 */
