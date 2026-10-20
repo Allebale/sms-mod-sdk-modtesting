@@ -1227,6 +1227,11 @@ static int n_player(lua_State* L)
 	setbool(L, "paused", (p.flags & SMS_NETP_PAUSED) != 0);
 	setbool(L, "cutscene", (p.flags & SMS_NETP_CUTSCENE) != 0);
 	setint(L, "ping", p.ping);
+	if (p.size >= offsetof(SmsNetPlayer, api_version) + sizeof p.api_version) { /* API 1.3 */
+		setstr(L, "game_version", p.game_version);
+		lua_pushfstring(L, "%d.%d", (int)(p.api_version >> 16), (int)(p.api_version & 0xFFFF));
+		lua_setfield(L, -2, "api_version");
+	}
 	return 1;
 }
 

@@ -2,6 +2,13 @@
 
 A release's tag is the API version (`v1.1.0` is API 1.1). Within a major version the API only grows; see [Compatibility](docs/MODDING.md#compatibility).
 
+## 1.3.0
+
+Versions in multiplayer: a host may take players on other builds of the game, and say which versions it needs (docs/MODDING.md, "Versions").
+
+- `SmsNetPlayer.game_version` and `api_version`: what each player's game said when it joined (its version, the launcher's "2026.10.18.1", and the mod API it carries), so a server mod knows which commands it understands. In Lua, `sms.net.player(slot).game_version` and `.api_version` (`"1.2"`).
+- `mod.ini`'s `client_api = 1.2`: what a server mod needs of the players' games; the host refuses older ones, saying why.
+
 ## 1.2.0
 
 Multiplayer, and server mods: mods that run only on the host of a multiplayer game, a dedicated server as a rule, while the players join with the plain game (docs/MODDING.md, "Server mods").

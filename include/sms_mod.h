@@ -35,7 +35,7 @@
 #include <stdint.h>
 
 #define SMS_MOD_API_MAJOR 1
-#define SMS_MOD_API_MINOR 2
+#define SMS_MOD_API_MINOR 3
 #define SMS_MOD_API_VERSION ((uint32_t)SMS_MOD_API_MAJOR << 16 | SMS_MOD_API_MINOR)
 
 #if defined(_WIN32)
@@ -725,6 +725,12 @@ typedef struct SmsNetPlayer {
 	float yaw;         /* their facing, degrees as SmsPlayer's */
 	uint32_t flags;    /* SMS_NETP_* */
 	int ping;          /* round trip to them (host) or the host (client), ms; -1 unknown */
+	/* API 1.3 (check out->size): as their game said when it joined (host;
+	   any game knows its own): its version ("2026.10.18.1", the launcher's;
+	   "" unknown) and the mod API it carries ((major << 16) | minor; 0
+	   unknown), so a server mod knows which commands it understands. */
+	char game_version[32];
+	uint32_t api_version;
 } SmsNetPlayer;
 
 /* Commands: what the host's server mod has players' games do. Each fills

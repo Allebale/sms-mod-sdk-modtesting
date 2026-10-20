@@ -107,7 +107,7 @@ The game never builds this crate itself; this outline has not been run against a
    include(FetchContent)
    FetchContent_Declare(sms_mod_sdk
      GIT_REPOSITORY https://github.com/chasem-dev/sms-mod-sdk.git
-     GIT_TAG v1.2.0)
+     GIT_TAG v1.3.0)
    FetchContent_MakeAvailable(sms_mod_sdk)
    sms_add_mod(mod src/my_mod.c)
    ```
@@ -201,6 +201,7 @@ A mod folder may sit beside the other things in `mods/` (texture packs, Eclipse,
 | `script` | A script mod's file, in its folder. | `main.<runtime>` |
 | `gameplay` | `1` when the mod changes how the game plays (rather than only showing things). The log lists such mods; multiplayer will compare them between players (see [Multiplayer](#multiplayer-save-states-and-eclipse)). | `0` |
 | `side` | `server`: a [server mod](#server-mods), loaded only in a game hosting multiplayer (players need nothing); `local`: wherever it is installed. | `local` |
+| `client_api` | A server mod: the mod API players' games need (`1.2`: the commands it sends). The host refuses older games, saying why ([Versions](#versions)). | any |
 
 ## Life of a mod
 
@@ -576,7 +577,7 @@ Objects are light userdata, for `sms.object_name`, `sms.object_position` and `sm
 | --- | --- |
 | `sms.net.role()`, `sms.net.dedicated()`, `sms.net.slot()`, `sms.net.session()` | `"off"`, `"host"` or `"client"`; the host is a server; this game's slot; the stage session |
 | `sms.net.players()` | the slots in the game, a list |
-| `sms.net.player(slot)` | `nil`, or `{slot, server, character, name, color, in_stage, position, yaw, visible, surfing, yoshi, spectating, paused, cutscene, ping}` |
+| `sms.net.player(slot)` | `nil`, or `{slot, server, character, name, color, in_stage, position, yaw, visible, surfing, yoshi, spectating, paused, cutscene, ping, game_version, api_version}` |
 | `sms.net.send(to, cmd)` | host: a [command](#commands) to `"all"`, a slot or a list of slots, as `{type = "banner", text = ..., color = ..., delay = seconds, sticky = true}`; returns the slots it went to as bits |
 | `sms.net.load_stage(area [, episode])` | host: everyone to that stage afresh |
 | `sms.net.set_mode(name)`, `sms.net.set_status(text)` | host: what the launcher's list of games shows |
@@ -681,6 +682,7 @@ Mods load once multiplayer has started, so `net->role()` is right while they loa
 | `position`, `yaw` | where they are and which way they face, as their last update said |
 | `flags` | `SMS_NETP_VISIBLE` (in play), `SURFING` (on a Blooper), `YOSHI`, `SPECTATING` (out of lives), `PAUSED`, `CUTSCENE` |
 | `ping` | round trip in ms (-1 unknown) |
+| `game_version`, `api_version` | (1.3) what their game said when it joined: its version (the launcher's, `"2026.10.18.1"`) and the mod API it carries (`(major << 16) + minor`); the host knows everyone's, any game its own |
 
 ### Commands
 
@@ -800,6 +802,21 @@ end)
 - **Lives and flags** are the host's to set (`game->flag_set` on the host): the Squid Race keeps everyone's lives up, so a race has no game over.
 - **Tell the launcher** what is on: `set_mode` once, `set_status` as the state changes.
 
+### Versions
+
+By default a host takes only players on exactly its build of the game. A host may let versions drift instead, for beta builds that change nothing between players, and may ask for at least some versions. Players' games carry the protocol number (which must always match: it is how the games understand each other), their build, their version and the mod API they carry; the host checks them as they join, and its answer to the launcher's probe says what it takes, so the launcher can tell a player before starting the game.
+
+| Setting (the host's environment) | |
+| --- | --- |
+| `SMS_MULTIPLAYER_VERSIONS=exact` | the host's own build only (the default) |
+| `SMS_MULTIPLAYER_VERSIONS=drift` | any build of the same protocol and the same Eclipse setting |
+| `SMS_MULTIPLAYER_MIN_VERSION=2026.10.18.1` | and at least this game version (a game that does not say its version is refused) |
+| `SMS_MULTIPLAYER_MIN_LAUNCHER=0.1.62` | and at least this launcher |
+
+A game's version is the launcher's (`SMS_GAME_VERSION`, which the launcher sets when it starts the game; a build without it says the date of its last commit); versions compare a number at a time, a beta (`1.2.0-beta`) before its release.
+
+A server mod says what it needs of the players' games with `client_api = 1.2` in its `mod.ini`: with versions drifting, an older game might not know a command the mod sends, so the host refuses games older than the highest `client_api` of its server mods. `net->player()` gives each player's `game_version` and `api_version` for anything finer.
+
 ### Limits, and what is next
 
 - **The commands are what players' games can do.** A new kind of command needs a new game build (an API minor version), and the players need it too, as for any change to the game; a server mod checks `SMS_API_HAS` as any mod does.
@@ -908,7 +925,7 @@ Bits: `0x800` airborne, `0x2000` swimming, `0x400` running; `status & 0x1C0` is 
 ## Compatibility
 
 - The game loads a mod whose `sms_mod_api_version()` has the game's **major** version; another major is refused with a message.
-- The current version is **1.2** (1.1 added `core->mod_info` and `core->host_runtime`, for script mods; 1.2 added `api->net`, the `SMS_EV_NET_*` events and `game->in_cube`, for [server mods](#server-mods)).
+- The current version is **1.3** (1.1 added `core->mod_info` and `core->host_runtime`, for script mods; 1.2 added `api->net`, the `SMS_EV_NET_*` events and `game->in_cube`, for [server mods](#server-mods); 1.3 added players' versions and `client_api`, for [versions](#versions)).
 - **Minor versions only add**: events, functions at the ends of tables, fields at the ends of structs. A mod built for an older minor runs on a newer game unchanged. A mod built for a newer minor runs on an older game if it checks what it uses with `SMS_API_HAS` and `ev->size` (the game logs a note when a mod is newer than it).
 - Nothing in the API depends on the game's internal layout, so game updates (and the decomp's progress) do not break mods. `api->native` is the exception, by design.
 
