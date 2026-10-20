@@ -2,6 +2,10 @@
 
 A release's tag is the API version (`v1.1.0` is API 1.1). Within a major version the API only grows; see [Compatibility](docs/MODDING.md#compatibility).
 
+## 1.1.1
+
+- The lua mod's Linux libraries load on glibc 2.35 and newer (Ubuntu 22.04, Debian 12, SteamOS); 1.1.0's needed 2.38. CI builds Linux mods on Ubuntu 22.04, and the templates' workflows do too.
+
 ## 1.1.0
 
 The SDK as its own repository, split from the port's `sdk/` folder with its history.
