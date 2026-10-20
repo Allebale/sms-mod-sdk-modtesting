@@ -104,6 +104,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           zip=$(ls sms-lua-mod-*.zip)
-          notes=$(printf 'API %s. The lua mod: unzip into the game'"'"'s mods/ folder (it holds lua/).\n\nMD5 `%s`, SHA-256 `%s`, %s bytes.\n\nWhat changed: CHANGELOG.md.' \
-            "${GITHUB_REF_NAME#v}" "$(md5sum "$zip" | cut -d' ' -f1)" "$(sha256sum "$zip" | cut -d' ' -f1)" "$(stat -c %s "$zip")")
+          version="${GITHUB_REF_NAME#v}"
+          notes=$(printf 'API %s. The lua mod, which runs Lua script mods: unzip into the game'"'"'s mods/ folder (it holds lua/, with a library for every platform), or run `python3 tools/mods/get.py lua` in the port.\n\nMD5 `%s`, SHA-256 `%s`, %s bytes.\n\nWhat changed: [CHANGELOG.md](%s/blob/%s/CHANGELOG.md).' \
+            "${version%.*}" "$(md5sum "$zip" | cut -d' ' -f1)" "$(sha256sum "$zip" | cut -d' ' -f1)" "$(stat -c %s "$zip")" \
+            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" "$GITHUB_REF_NAME")
           gh release create "$GITHUB_REF_NAME" "$zip" --title "sms-mod-sdk $GITHUB_REF_NAME" --notes "$notes"
