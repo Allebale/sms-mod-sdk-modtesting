@@ -8,7 +8,7 @@ They all go through the same API, which puts their handlers in order, stacks the
 
 This page is the whole manual: how to [write one](#quick-start), [what a mod folder holds](#the-mod-folder), [how mods live together](#living-together), the [events](#events) and [functions](#the-api) in full, mods [in Lua](#lua-scripts), [game numbers](#game-reference) such as stage and flag ids, [debugging](#debugging), and the [design](#design-notes) behind it all, including what is planned.
 
-The API itself is one C header, [`sdk/include/sms_mod.h`](../include/sms_mod.h), with every function and payload documented where it is declared. [`sdk/include/sms_mod.hpp`](../include/sms_mod.hpp) adds a header-only C++ layer. The examples in [`sdk/examples/`](../examples) are complete mods.
+The API itself is one C header, [`include/sms_mod.h`](../include/sms_mod.h), with every function and payload documented where it is declared. [`include/sms_mod.hpp`](../include/sms_mod.hpp) adds a header-only C++ layer. Complete example mods, and templates to start your own from, are in [sms-mod-templates](https://github.com/chasem-dev/sms-mod-templates).
 
 Contents:
 [Languages](#languages) ·
@@ -61,7 +61,7 @@ bindgen = "0.69"
 ```
 
 ```rust
-// build.rs: bindgen::Builder::default().header("sdk/include/sms_mod.h") ... .write_to_file(out.join("sms.rs"))
+// build.rs: bindgen::Builder::default().header("sms-mod-sdk/include/sms_mod.h") ... .write_to_file(out.join("sms.rs"))
 include!(concat!(env!("OUT_DIR"), "/sms.rs"));
 
 static mut API: *const SmsApi = std::ptr::null();
@@ -91,19 +91,30 @@ The game never builds this crate itself; this outline has not been run against a
 
 ## Quick start
 
-1. **Copy an example.** `sdk/examples/hello` (C++) is the smallest; `trainer-hud` (C) shows almost everything.
-2. **Build it** with the SDK's CMake helper, which lays the mod out as the game loads it:
+1. **Start from a template.** [sms-mod-templates](https://github.com/chasem-dev/sms-mod-templates) has a folder for each language to copy as your mod's own repository: [`templates/cpp`](https://github.com/chasem-dev/sms-mod-templates/tree/main/templates/cpp), [`templates/c`](https://github.com/chasem-dev/sms-mod-templates/tree/main/templates/c) and [`templates/lua`](https://github.com/chasem-dev/sms-mod-templates/tree/main/templates/lua).
+   Each builds with CMake, fetching this SDK by its version tag, and has a GitHub Actions workflow that builds the mod for every platform and zips it for a release.
+   The [examples](https://github.com/chasem-dev/sms-mod-templates/tree/main/examples) are complete mods to read: `hello` (C++) is the smallest; `trainer-hud` (C) shows almost everything.
+2. **Build it.** The SDK's CMake helper lays the mod out as the game loads it:
    ```sh
-   cmake -S sdk/examples -B build/mods-examples -DSMS_MODS_OUT=$PWD/mods -DSMS_MOD_ARCH=32
-   cmake --build build/mods-examples
+   cmake -S . -B build -DSMS_MODS_OUT=/path/to/the/game/mods -DSMS_MOD_ARCH=32
+   cmake --build build
    ```
    `SMS_MOD_ARCH=32` is for the default Linux game (`build/linux-32`), which is a 32-bit program; a mod must have the game's pointer size.
    For a 64-bit game (`SMS_ARCH=64`, Windows, macOS) leave it out.
-   For your own mod outside this repository, `include(path/to/sdk/cmake/SmsMod.cmake)` and call `sms_add_mod(<folder> <sources>)`.
-   Without CMake, one command does: `cc -shared -fPIC -fvisibility=hidden -O2 -I sdk/include mymod.c -o mods/mymod/bin/linux-x86_64/mymod.so` (add `-m32` and use `linux-x86` for the 32-bit game).
+   In a CMake project of your own, get the SDK with FetchContent and call `sms_add_mod(<folder with mod.ini> <sources>)`:
+   ```cmake
+   include(FetchContent)
+   FetchContent_Declare(sms_mod_sdk
+     GIT_REPOSITORY https://github.com/chasem-dev/sms-mod-sdk.git
+     GIT_TAG v1.1.0)
+   FetchContent_MakeAvailable(sms_mod_sdk)
+   sms_add_mod(mod src/my_mod.c)
+   ```
+   `-DFETCHCONTENT_SOURCE_DIR_SMS_MOD_SDK=<path>` builds against a checkout of the SDK instead.
+   Without CMake, one command does: `cc -shared -fPIC -fvisibility=hidden -O2 -I sms-mod-sdk/include mymod.c -o mods/mymod/bin/linux-x86_64/mymod.so` (add `-m32` and use `linux-x86` for the 32-bit game).
 3. **Run the game.** Every folder in `mods/` with a `mod.ini` is loaded. The log says so:
    ```
-   [mods] 3 native mod(s) in ../../mods (linux-x86); settings in ~/.local/share/sms-port/mods
+   [mods] API 1.1: 3 native mod(s) in ../../mods (linux-x86); settings in ~/.local/share/sms-port/mods
    [mod:hello] loaded Hello 1.0.0 by SMS PC port examples
    [mod:hello] hello from DELFINO PLAZA, episode 1
    ```
@@ -420,11 +431,13 @@ Bump the version when the struct changes incompatibly, and only add fields at it
 ## Lua scripts
 
 Mods can be written in Lua 5.4 instead of a compiled language.
-The **lua** mod (`sdk/examples/lua`, a native mod that embeds Lua) runs every folder in `mods/` whose `mod.ini` says `runtime = lua`.
+The **lua** mod, a native mod that embeds Lua, runs every folder in `mods/` whose `mod.ini` says `runtime = lua`.
+It is optional, and not part of the game: install it once from this SDK's [releases](https://github.com/chasem-dev/sms-mod-sdk/releases) (one zip, with its library for every platform; unzip it into `mods/`), or with the port's `python3 tools/mods/get.py lua`. Its source is [`lua/`](../lua).
+Without it, script mods are listed in the Mods menu as needing it.
 A script mod is a mod like any other: it has its own id, settings, options in the Mods menu, keys, HUD slots, place in the load order and `[mod:<id>]` log lines, and it can be switched off, reloaded and ordered with `after` and `requires`.
 It needs no compiler and no library per platform: the same folder runs on every computer the lua mod is installed on.
 
-[`sdk/examples/lua-challenges`](../examples/lua-challenges) is a complete script mod: a challenge against the clock each time a stage loads, with a panel, world markers, sounds, settings, a key, a module of its own, and the C `stage-timer` mod's events read from Lua.
+[`templates/lua`](https://github.com/chasem-dev/sms-mod-templates/tree/main/templates/lua) is a script mod to start from, and [`examples/lua-challenges`](https://github.com/chasem-dev/sms-mod-templates/tree/main/examples/lua-challenges) a complete one: a challenge against the clock each time a stage loads, with a panel, world markers, sounds, settings, a key, a module of its own, and the C `stage-timer` mod's events read from Lua.
 
 ### A script mod
 
@@ -699,8 +712,8 @@ Hooks are named events at chosen places in the game (`port_ext.h`), each general
 
 ### Built-in extensions
 
-`ext/` holds the port's built-in extensions (multiplayer, the demo pilot), which hook the game through `port_ext.h`.
-The native mod API is one more of them (`ext/modapi`): it turns those hooks into mod events and adds the rest (loading, drawing, input, settings).
+The port's [`ext/`](https://github.com/chasem-dev/sms-pc-port/tree/main/ext) holds its built-in extensions (multiplayer, the demo pilot), which hook the game through `port_ext.h`.
+The native mod API is one more of them ([`ext/modapi`](https://github.com/chasem-dev/sms-pc-port/tree/main/ext/modapi)): it turns those hooks into mod events and adds the rest (loading, drawing, input, settings).
 New hook points go into `port_ext.h` once and serve both built-in extensions and mods.
 
 ### What modders will want, and where it stands
@@ -729,13 +742,13 @@ The game's part is small and general: it treats a `runtime = <name>` folder as a
 Scripts need no compiler and no binary per platform, and their speed is plenty for HUDs, rules and menus; anything heavier, or anything needing a new hook, stays in C.
 Lua 5.4 is small (the whole lua mod is about 350 KB stripped), embeds cleanly, sandboxes well, and is familiar from many games' mod scenes.
 
-## Adding to the API (port developers)
+## Adding to the API
 
-The runtime is [`ext/modapi`](../../ext/modapi/README.md). To add an event:
+The API is this repository. The game's side of it, the runtime, is [`ext/modapi`](https://github.com/chasem-dev/sms-pc-port/blob/main/ext/modapi/README.md) in [sms-pc-port](https://github.com/chasem-dev/sms-pc-port), which has this repository as its `sdk/` submodule.
+A change goes here first, then into the port:
 
-1. If the game needs a new hook point, add it to `PortExtension` and the `port_ext_*` functions (`src/port_include/port_ext.h`, `ext/core/port_ext.cpp`) and call it from a `zzzzz-ext-*` decomp patch, general enough for other extensions.
-2. Add the event's id and payload at the end of the lists in `sdk/include/sms_mod.h`, and bump `SMS_MOD_API_MINOR`.
-3. In `ext/modapi/game/modapi_game.cpp`, build the payload in the extension's hook and call `modh_dispatch` (skip it when `modh_wants` says nobody listens). If it is cancellable or consumable, add it to `cancellable()` / `consumable()` in `ext/modapi/host/mod_runtime.cpp`.
-4. Document it in the [Events](#events) table here.
+1. **Here:** add the event's id and payload at the end of the lists in `include/sms_mod.h` (a function at the end of its table's struct), bump `SMS_MOD_API_MINOR`, document it in this manual ([Events](#events), [The API](#the-api)), give Lua scripts it in `lua/lua_host.c` if they should have it, note it in `CHANGELOG.md`, and tag the release (`v1.<minor>.0`).
+2. **In the port:** move `sdk/` to that tag. If the game needs a new hook point, add it to `PortExtension` and the `port_ext_*` functions (`src/port_include/port_ext.h`, `ext/core/port_ext.cpp`) and call it from a `zzzzz-ext-*` decomp patch, general enough for other extensions.
+3. In `ext/modapi/game/modapi_game.cpp`, build the payload in the extension's hook and call `modh_dispatch` (skip it when `modh_wants` says nobody listens). If it is cancellable or consumable, add it to `cancellable()` / `consumable()` in `ext/modapi/host/mod_runtime.cpp`; a function goes in its table's initializer there.
 
-Functions go at the end of their table's struct in `sms_mod.h` and its initializer in the runtime; never reorder or remove (that is a major version).
+Never reorder or remove anything in `sms_mod.h`: that is a new major version, and every mod built before it stops loading.
