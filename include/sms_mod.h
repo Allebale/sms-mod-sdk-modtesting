@@ -35,7 +35,7 @@
 #include <stdint.h>
 
 #define SMS_MOD_API_MAJOR 1
-#define SMS_MOD_API_MINOR 3
+#define SMS_MOD_API_MINOR 4
 #define SMS_MOD_API_VERSION ((uint32_t)SMS_MOD_API_MAJOR << 16 | SMS_MOD_API_MINOR)
 
 #if defined(_WIN32)
@@ -183,6 +183,10 @@ typedef enum SmsEventType {
 	/* Host: it opened a new stage session, which every player follows
 	   (SmsEvNetSession). Sticky commands of the last session are gone. */
 	SMS_EV_NET_SESSION = 29,
+	/* API 1.4. The stage's opening is over (its camera cutscene, the
+	   episode's name, "Go!") and the player has the controls: the first
+	   tick of play. SmsEvStage: the stage, and how it was reached (reason). */
+	SMS_EV_STAGE_START = 30,
 
 	/* core->event_id hands out ids from here for mods' own events. */
 	SMS_EV_CUSTOM_BASE = 0x10000
@@ -247,7 +251,29 @@ typedef struct SmsEvDraw {
 
 typedef struct SmsEvStage {
 	int area, episode; /* the stage: see docs/MODDING.md for the area numbers */
+	/* API 1.4 (check ev->size): why the game leaves (SMS_EV_STAGE_LEAVING,
+	   SMS_EV_LIFE_LOST, SMS_EV_FILE_SELECTED) or came (SMS_EV_STAGE_LOADED,
+	   SMS_EV_STAGE_START): SMS_LEAVE_*. For SMS_LEAVE_SHINE, the Shine
+	   (0..119); otherwise, or not known, -1. */
+	int reason;
+	int shine;
 } SmsEvStage;
+
+/* SmsEvStage.reason (API 1.4) */
+typedef enum SmsLeaveReason {
+	SMS_LEAVE_OTHER = 0,     /* none of these: the title, a movie's way on */
+	SMS_LEAVE_WAY_OUT = 1,   /* the stage's own way out: a pipe, a painting, a door, an event */
+	SMS_LEAVE_SHINE = 2,     /* a Shine ended the stage; its Shine Get and its save are over */
+	SMS_LEAVE_EXIT_AREA = 3, /* the pause menu's Exit Area */
+	SMS_LEAVE_LIFE_LOST = 4, /* Mario lost a life */
+	SMS_LEAVE_GAME_OVER = 5, /* Mario lost his last life */
+	SMS_LEAVE_WARP = 6,      /* a mod's game->warp */
+	SMS_LEAVE_FILE = 7       /* a file was chosen at file select */
+} SmsLeaveReason;
+
+/* SmsEvStage.episode: no episode named; for a world's way in from the plaza
+   (SMS_AREA_WORLD), its episode select chooses. */
+#define SMS_EPISODE_SELECT 255
 
 typedef struct SmsEvStageExit {
 	uint32_t code;     /* the game's (area + 1) << 8 | episode request */
@@ -429,6 +455,28 @@ typedef struct SmsGameState {
 	int paused;           /* the pause menu, map or a save screen is up (no ticks) */
 } SmsGameState;
 
+/* API 1.4: game->object_info's */
+typedef struct SmsObjectInfo {
+	uint32_t size;      /* sizeof, set before calling */
+	uint32_t type;      /* its actor type */
+	char kind[32];      /* as the stage names it ("WoodBlockCone"); "" not a map object */
+	SmsVec3 position, rotation, scale; /* rotation: degrees about x, y, z */
+	int alive;          /* in the stage (not killed) */
+	int hidden;         /* out of the stage until shown */
+	int spawned;        /* a copy SMS_CMD_SPAWN made: its id; 0 the stage's own */
+} SmsObjectInfo;
+
+/* API 1.4: game->ground's */
+typedef struct SmsGround {
+	uint32_t size;      /* sizeof, set before calling */
+	float floor;        /* the floor's height below the point */
+	uint32_t floor_type;/* its collision type (TBGCheckData::mBGType, without the camera and shadow bits) */
+	int water;          /* the floor is water's surface */
+	int has_water;      /* there is water's surface over or at the point: water_y */
+	float water_y;
+	float roof;         /* the roof's height above (a large number when there is none) */
+} SmsGround;
+
 typedef struct SmsGameApi {
 	uint32_t size;
 	void (*state)(SmsGameState* out); /* set out->size = sizeof *out first */
@@ -458,6 +506,17 @@ typedef struct SmsGameApi {
 	   no such cube). */
 	int (*cube_count)(int set);
 	int (*in_cube)(int set, int index, const SmsVec3* p);
+	/* API 1.4: the stage's objects as this game has them (on the host, the
+	   copy its server mods judge by), picked as SMS_CMD_OBJECT picks them:
+	   actor types lo to hi, kind ("WoodBlockCone"; "@id" a copy SMS_CMD_SPAWN
+	   made; "" any). object_count: how many; object_info: the index-th of
+	   them into out (out->size set first), 1, or 0 when there is none. */
+	int (*object_count)(uint32_t type_lo, uint32_t type_hi, const char* kind);
+	int (*object_info)(uint32_t type_lo, uint32_t type_hi, const char* kind, int index, SmsObjectInfo* out);
+	/* The ground at a point, as Mario finds it: the floor below p (from a
+	   little above it), whether that is water, the water's surface over p,
+	   and the roof above. 0 off the stage's map. */
+	int (*ground)(const SmsVec3* p, SmsGround* out);
 } SmsGameApi;
 
 /* The game's cube sets (api->game->in_cube). */
@@ -731,6 +790,10 @@ typedef struct SmsNetPlayer {
 	   unknown), so a server mod knows which commands it understands. */
 	char game_version[32];
 	uint32_t api_version;
+	/* API 1.4 (check out->size): what they press, as their last update
+	   said (their own controller before the game sees it; held players'
+	   too): SMS_PAD_* buttons, the sticks (-128..127) and triggers (0..255). */
+	SmsPadStatus pad;
 } SmsNetPlayer;
 
 /* Commands: what the host's server mod has players' games do. Each fills
@@ -762,7 +825,7 @@ typedef enum SmsCmdType {
 	SMS_CMD_READY_GO = 5,
 	/* A sound: i[0] a system sound (audio->play_system_sound's numbers,
 	   SMS_SOUND_*; an unsigned number stored in the int). */
-	SMS_CMD_SOUND = 6,
+	SMS_CMD_SOUND = 6, /* API 1.4: i[1] 1 plays it at f[0..2] in the world (older games: as a system sound) */
 	/* Music: i[0] the game's background music id (MSD_BGM_*, an unsigned
 	   number stored in the int: SMS_MUSIC_*); 0 stops the music a command started. */
 	SMS_CMD_MUSIC = 7,
@@ -785,10 +848,46 @@ typedef enum SmsCmdType {
 	SMS_CMD_STOP_SCRIPT = 13,
 	/* i[0] 1: the player stays in this stage: their own ways out (pipes,
 	   doors, Exit Area) lead nowhere, and only the host moves them on; 0: free. */
-	SMS_CMD_STAY = 14
+	SMS_CMD_STAY = 14,
+	/* API 1.4: one of the stage's objects: of actor types i[0] to i[1] and of
+	   the kind text, as the stage names it ("WoodBlockCone", "normallift",
+	   "rollblocky"; "" any), the i[2]th (0 first, in the order every game
+	   loads them; -1: each of them). i[3] SMS_OBJECT_* says what, with f[]. */
+	SMS_CMD_OBJECT = 15,
+	/* API 1.4. A copy of one of the stage's objects (picked as for
+	   SMS_CMD_OBJECT: i[0]..i[1] types, text its kind, i[2] which), or with
+	   types 0 and 0 an item by its name in text (SMS_SPAWN_*: "coin",
+	   "coin_red", "1up", "FruitBanana"...), at f[0..2] turned f[3]
+	   degrees. i[3] is its id (1 or more, the mod's own): SMS_CMD_OBJECT and
+	   game->object_info reach it as kind "@<id>". Sticky per id, as every
+	   copy should be: a player arriving later has the same. */
+	SMS_CMD_SPAWN = 16,
+	/* The player: i[0] SMS_PLAYER_*. */
+	SMS_CMD_PLAYER = 17,
+	/* What the player may do: i[0] SMS_RULE_* bits (0: all of it). */
+	SMS_CMD_RULES = 18,
+	/* A board at the top right: row i[0] (0 to 7; -1 every row) is text, in
+	   i[1]'s colour (0xRRGGBBAA; 0 white); "" clears the row. Sticky per row. */
+	SMS_CMD_BOARD = 19,
+	/* The HUD's parts hidden: i[0] SMS_HUD_* bits (0 all shown again). */
+	SMS_CMD_HUD = 20,
+	/* Marker i[0] (0 to 7): text (an arrow when "") in i[2]'s colour over
+	   f[0..2] in the world, or over player i[1] (-1: the place); i[3] 1 takes
+	   it away. Sticky per marker. */
+	SMS_CMD_MARKER = 21,
+	/* The screen: i[0] SMS_SCREEN_*, in i[1]'s colour (0xRRGGBBAA), over f[0] seconds. */
+	SMS_CMD_SCREEN = 22,
+	/* The camera shakes, f[0] strong (1 a hard hit), for f[1] seconds. */
+	SMS_CMD_SHAKE = 23,
+	/* The controller rumbles: i[0] 0 weak, 1 hard, i[1] times (1 or more). */
+	SMS_CMD_RUMBLE = 24
 } SmsCmdType;
 
 #define SMS_CMD_STICKY 1u
+/* API 1.4: send nothing, and forget the sticky command of this kind (as
+   sticky commands replace each other: the same type, to the same players,
+   and for those keyed so, the same object, id, row or marker). */
+#define SMS_CMD_UNSTICK 2u
 
 /* Some of the game's music (SMS_CMD_MUSIC) */
 #define SMS_MUSIC_EVENT        ((int32_t)0x8001001Fu) /* a race's, a timed event's */
@@ -805,6 +904,64 @@ typedef enum SmsCmdType {
 #define SMS_ACTORS_HIDE 1  /* out of the stage (unseen, touching nothing), until shown */
 #define SMS_ACTORS_KILL 2  /* gone for this stage (a Shine nobody should get) */
 
+/* SMS_CMD_OBJECT's i[3] (API 1.4). Sticky, one of each per object (SHOW and
+   HIDE are one: the last says which). */
+#define SMS_OBJECT_PLACE 0 /* to f[0..2], turned f[3] degrees about the vertical; where it goes back to as well
+                              (not one on a rail: its rail says where it goes) */
+#define SMS_OBJECT_SPEED 1 /* f[0] times its own speed (up to 20): a spinner's turning, the other way round
+                              when negative; a lift's or a platform's along its rail (0.05 at least) */
+#define SMS_OBJECT_PHASE 2 /* back to how the stage loaded it, then f[0] seconds (up to 60) of its own
+                              movement at once: a lift or spinner where it would be by then, the same in
+                              every game (send it with a delay_ms for the moment it should be so) */
+#define SMS_OBJECT_SHOW  3 /* back */
+#define SMS_OBJECT_HIDE  4 /* out of the stage: unseen, nothing to touch or stand on, until shown */
+#define SMS_OBJECT_SCALE 5 /* f[0..2] its size about x, y, z (1 as made) */
+#define SMS_OBJECT_TURN  6 /* f[0..2] its turn about x, y, z, degrees (not one on a rail) */
+#define SMS_OBJECT_MOVE  7 /* glides to f[0..2] turned f[3] degrees about the vertical, over f[4] seconds
+                              (SmsCmd.f2[0]); where it goes back to as well (not one on a rail) */
+#define SMS_OBJECT_KILL  8 /* gone for this stage */
+
+/* SMS_CMD_SPAWN's items (text, with types 0 and 0); the stage must have the
+   model of one that is not a coin (one of its kind there, or in its archive) */
+#define SMS_SPAWN_COIN     "coin"
+#define SMS_SPAWN_RED_COIN "coin_red"
+#define SMS_SPAWN_1UP      "1up"
+
+/* SMS_CMD_PLAYER's i[0] */
+#define SMS_PLAYER_LOSE_LIFE 0 /* the game's own miss, now */
+#define SMS_PLAYER_LAUNCH    1 /* thrown along f[0..2] (a direction) at f[3] units a frame (40 a big push) */
+#define SMS_PLAYER_DISMOUNT  2 /* off a Blooper or Yoshi */
+#define SMS_PLAYER_HEALTH    3 /* i[1]: 0 to 8 (0 does not lose a life) */
+#define SMS_PLAYER_WATER     4 /* i[1]: FLUDD's tank, 0 to 100 percent */
+#define SMS_PLAYER_NOZZLE    5 /* i[1]: 0 spray, 1 rocket, 2 underwater, 4 hover, 5 turbo */
+
+/* SMS_CMD_RULES's bits */
+#define SMS_RULE_NO_FLUDD   1u /* FLUDD sprays nothing */
+#define SMS_RULE_NO_DAMAGE  2u /* no health lost (falls and drops still cost a life) */
+#define SMS_RULE_NO_PAUSE   4u /* no pause menu or map */
+#define SMS_RULE_NO_PICKUPS 8u /* coins and items stay where they are */
+
+/* SMS_CMD_HUD's bits */
+#define SMS_HUD_COINS      1u
+#define SMS_HUD_SHINES     2u
+#define SMS_HUD_BLUE_COINS 4u
+#define SMS_HUD_HEALTH     8u
+#define SMS_HUD_WATER      16u
+#define SMS_HUD_LIVES      32u
+#define SMS_HUD_RED_COINS  64u
+#define SMS_HUD_ALL        0xFFFFu
+
+/* SMS_CMD_SCREEN's i[0] */
+#define SMS_SCREEN_CLEAR    0 /* the picture back at once */
+#define SMS_SCREEN_FADE_OUT 1 /* to the colour */
+#define SMS_SCREEN_FADE_IN  2 /* from the colour */
+#define SMS_SCREEN_FLASH    3 /* the colour, fading away */
+
+/* net->set_respawn's how */
+#define SMS_RESPAWN_NONE    0
+#define SMS_RESPAWN_WARP    1 /* there, as a warp puts them */
+#define SMS_RESPAWN_BLOOPER 2 /* onto a Blooper there */
+
 typedef struct SmsCmd {
 	uint32_t size;     /* sizeof(SmsCmd) */
 	uint32_t type;     /* SMS_CMD_* */
@@ -813,6 +970,7 @@ typedef struct SmsCmd {
 	int32_t i[4];
 	float f[4];
 	const char* text;  /* copied; at most 159 bytes are sent */
+	float f2[4];       /* API 1.4 (taken when size covers it): the commands' f[4..7] */
 } SmsCmd;
 
 typedef struct SmsNetApi {
@@ -833,7 +991,71 @@ typedef struct SmsNetApi {
 	   ("squid-race", at most 15 bytes) and a line of its state. */
 	void (*set_mode)(const char* name);
 	void (*set_status)(const char* text);
+	/* API 1.4, host only. A player's Customize Mario look, Mario's and
+	   FLUDD's colours ("hat=2fa846;shirt=2fa846;fluddBody=..."), forced: in
+	   their own game and every other, newcomers too, until set again; NULL
+	   gives them their own back. look(): theirs as it is now, into out. */
+	int (*set_look)(int slot, const char* look);
+	int (*look)(int slot, char* out, int size);
+	/* Where a player comes back each time they arrive in the session (just
+	   joined, back after a lost life): SMS_RESPAWN_*, at p facing yaw
+	   degrees, after the session's sticky commands. NONE: the stage's own. */
+	int (*set_respawn)(int slot, int how, const SmsVec3* p, float yaw);
 } SmsNetApi;
+
+/* ------------------------------------------------------------------ worlds and episodes (API 1.4) */
+
+/* api->world: the game's map of its stages, as its own menus see it. An area
+ * is one stage (SmsEvStage.area); a world is a place the plaza leads to, with
+ * its areas (Sirena Beach and Hotel Delfino), its secret courses and its
+ * eight episodes, each with its Shine. Worlds are named by the area the
+ * plaza leads into (Bianco Hills: 2). Super Mario Eclipse numbers its stages
+ * its own way: in its builds every area is SMS_AREA_NONE. */
+
+typedef enum SmsAreaKind {
+	SMS_AREA_NONE = 0,       /* no such area (or an Eclipse build) */
+	SMS_AREA_AIRSTRIP = 1,   /* Delfino Airstrip, where the story starts */
+	SMS_AREA_PLAZA = 2,      /* Delfino Plaza, and its parts */
+	SMS_AREA_WORLD = 3,      /* a world's way in from the plaza, with its episode select */
+	SMS_AREA_WORLD_PART = 4, /* another part of a world (Hotel Delfino, the park of Pinna Park) */
+	SMS_AREA_SECRET = 5,     /* a secret course */
+	SMS_AREA_FINAL = 6,      /* Corona Mountain */
+	SMS_AREA_TITLE = 7       /* the title screen's plaza (15) */
+} SmsAreaKind;
+
+typedef struct SmsWorldApi {
+	uint32_t size;
+	/* What an area is (SMS_AREA_*), and the world it belongs to: the area
+	   the plaza leads into (2 for every area of Bianco Hills, its secret
+	   courses too; 1 for the plaza's own; 0 the Airstrip; 52 Corona
+	   Mountain), or -1. */
+	int (*area_kind)(int area);
+	int (*world_of)(int area);
+	/* A world's episodes (any of its areas names it): how many (8 for the
+	   seven worlds, else 0); the Shine an episode is for (0..119, or -1);
+	   and its name as the game shows it, copied into out (one line, ASCII;
+	   returns its length, 0 when there is none). Episodes count from 0. */
+	int (*episode_count)(int area);
+	int (*episode_shine)(int area, int episode);
+	int (*episode_name)(int area, int episode, char* out, int size);
+	/* The episode the world's episode select offers first: the one after
+	   the newest whose Shine the file has (the first with none; the last
+	   when that is had). -1: no episodes. */
+	int (*next_episode)(int area);
+	/* The episode a Shine is the story Shine of, with its world in *area
+	   (may be NULL); -1 for the others (100 coins, blue coins, the plaza's). */
+	int (*shine_episode)(int shine, int* area);
+	/* The stage's camera cutscenes, by the names SMS_EV_CUTSCENE gives
+	   ("camera_sirena_gate_in"): whether the stage has one by that name; and
+	   play one as the game plays its own (the player waits, the HUD hides),
+	   centred on focus (NULL: as it was made), for `frames` (-1: as long as
+	   it is). Returns 1 when it is on its way: in a stage that is played,
+	   with no cutscene, talk or menu on. */
+	int (*has_cutscene)(const char* name);
+	int (*play_cutscene)(const char* name, const SmsVec3* focus, int frames);
+	/* A cutscene (the game's or a mod's) or a talk is on now. */
+	int (*cutscene_playing)(void);
+} SmsWorldApi;
 
 struct SmsApi {
 	uint32_t size;
@@ -848,6 +1070,7 @@ struct SmsApi {
 	const SmsAudioApi* audio;
 	const SmsNativeApi* native;
 	const SmsNetApi* net;           /* API 1.2 (SMS_API_HAS(api, net)) */
+	const SmsWorldApi* world;       /* API 1.4 (SMS_API_HAS(api, world)) */
 };
 
 /* ------------------------------------------------------------------ the mod's side */
