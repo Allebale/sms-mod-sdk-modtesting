@@ -2,6 +2,13 @@
 
 A release's tag is the API version (`v1.1.0` is API 1.1). Within a major version the API only grows; see [Compatibility](docs/MODDING.md#compatibility).
 
+## 1.4.0
+
+The stage's objects, one at a time, for server mods (docs/MODDING.md, "One object").
+
+- `SMS_CMD_OBJECT`: one of the stage's objects (by actor types, its kind as the stage names it, and which of them), or each of a kind: placed and turned (`SMS_OBJECT_PLACE`), a spinner or a lift on its rail at a speed of its own (`SPEED`), moved on from how the stage loaded it to a moment of its own, the same in every game (`PHASE`), shown or hidden, its collision with it (`SHOW`, `HIDE`). Sticky per object and what it does. In Lua, `sms.net.send(to, { type = "object", kind = "WoodBlockCone", index = 0, what = "place", position = ..., yaw = ... })`.
+- A sticky command replaces the last of its kind; a session keeps up to 192 of them (64 before), so a mod can set each of a stage's objects.
+
 ## 1.3.0
 
 Versions in multiplayer: a host may take players on other builds of the game, and say which versions it needs (docs/MODDING.md, "Versions").

@@ -1294,9 +1294,10 @@ static int fieldchoice(lua_State* L, int t, const char* k, const char* const* na
 static int n_send(lua_State* L)
 {
 	static const char* const kTypes[] = {"", "banner", "notice", "status", "timer", "ready_go", "sound", "music",
-	                                     "warp", "hold", "mount", "watch", "actors", "stop_script", "stay"};
+	                                     "warp", "hold", "mount", "watch", "actors", "stop_script", "stay", "object"};
 	static const char* const kTimer[]  = {"hide", "show", "up", "down"};
 	static const char* const kActors[] = {"show", "hide", "kill"};
+	static const char* const kObject[] = {"place", "speed", "phase", "show", "hide"};
 	luaL_checktype(L, 2, LUA_TTABLE);
 	const uint32_t to = toMask(L, 1);
 	SmsCmd c;
@@ -1304,7 +1305,7 @@ static int n_send(lua_State* L)
 	memset(&c, 0, sizeof c);
 	c.size = sizeof c;
 	c.type = (uint32_t)fieldchoice(L, 2, "type", kTypes, (int)(sizeof kTypes / sizeof kTypes[0]), 0);
-	if (!c.type || c.type > SMS_CMD_STAY)
+	if (!c.type || c.type > SMS_CMD_OBJECT)
 		return luaL_error(L, "sms.net.send: no such command type");
 	c.flags    = fieldbool(L, 2, "sticky") ? SMS_CMD_STICKY : 0;
 	c.delay_ms = (uint32_t)(fieldnum(L, 2, "delay", 0) * 1000.0f);
@@ -1339,6 +1340,22 @@ static int n_send(lua_State* L)
 		c.i[0] = (int32_t)(uint32_t)fieldint(L, 2, "from", 0);
 		c.i[1] = (int32_t)(uint32_t)fieldint(L, 2, "to", c.i[0]);
 		c.i[2] = fieldchoice(L, 2, "state", kActors, 3, SMS_ACTORS_HIDE);
+		break;
+	case SMS_CMD_OBJECT:
+		c.i[0] = (int32_t)(uint32_t)fieldint(L, 2, "from", 0);
+		c.i[1] = (int32_t)(uint32_t)fieldint(L, 2, "to", c.i[0] ? c.i[0] : (lua_Integer)0xFFFFFFFFu);
+		c.i[2] = (int32_t)fieldint(L, 2, "index", -1);
+		c.i[3] = fieldchoice(L, 2, "what", kObject, 5, SMS_OBJECT_PLACE);
+		lua_getfield(L, 2, "kind");
+		c.text = lua_tostring(L, -1); /* kept on the stack until sent */
+		if (c.i[3] == SMS_OBJECT_PLACE) {
+			c.f[0] = at.x;
+			c.f[1] = at.y;
+			c.f[2] = at.z;
+			c.f[3] = fieldnum(L, 2, "yaw", 0);
+		} else {
+			c.f[0] = fieldnum(L, 2, c.i[3] == SMS_OBJECT_SPEED ? "times" : "seconds", c.i[3] == SMS_OBJECT_SPEED ? 1 : 0);
+		}
 		break;
 	default: break;
 	}

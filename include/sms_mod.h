@@ -35,7 +35,7 @@
 #include <stdint.h>
 
 #define SMS_MOD_API_MAJOR 1
-#define SMS_MOD_API_MINOR 3
+#define SMS_MOD_API_MINOR 4
 #define SMS_MOD_API_VERSION ((uint32_t)SMS_MOD_API_MAJOR << 16 | SMS_MOD_API_MINOR)
 
 #if defined(_WIN32)
@@ -785,7 +785,12 @@ typedef enum SmsCmdType {
 	SMS_CMD_STOP_SCRIPT = 13,
 	/* i[0] 1: the player stays in this stage: their own ways out (pipes,
 	   doors, Exit Area) lead nowhere, and only the host moves them on; 0: free. */
-	SMS_CMD_STAY = 14
+	SMS_CMD_STAY = 14,
+	/* API 1.4: one of the stage's objects: of actor types i[0] to i[1] and of
+	   the kind text, as the stage names it ("WoodBlockCone", "normallift",
+	   "rollblocky"; "" any), the i[2]th (0 first, in the order every game
+	   loads them; -1: each of them). i[3] SMS_OBJECT_* says what, with f[]. */
+	SMS_CMD_OBJECT = 15
 } SmsCmdType;
 
 #define SMS_CMD_STICKY 1u
@@ -804,6 +809,18 @@ typedef enum SmsCmdType {
 #define SMS_ACTORS_SHOW 0  /* as the stage has them */
 #define SMS_ACTORS_HIDE 1  /* out of the stage (unseen, touching nothing), until shown */
 #define SMS_ACTORS_KILL 2  /* gone for this stage (a Shine nobody should get) */
+
+/* SMS_CMD_OBJECT's i[3] (API 1.4). Sticky, one of each per object (SHOW and
+   HIDE are one: the last says which). */
+#define SMS_OBJECT_PLACE 0 /* to f[0..2], turned f[3] degrees about the vertical; where it goes back to as well
+                              (not one on a rail: its rail says where it goes) */
+#define SMS_OBJECT_SPEED 1 /* f[0] times its own speed (up to 20): a spinner's turning, the other way round
+                              when negative; a lift's or a platform's along its rail (0.05 at least) */
+#define SMS_OBJECT_PHASE 2 /* back to how the stage loaded it, then f[0] seconds (up to 60) of its own
+                              movement at once: a lift or spinner where it would be by then, the same in
+                              every game (send it with a delay_ms for the moment it should be so) */
+#define SMS_OBJECT_SHOW  3 /* back */
+#define SMS_OBJECT_HIDE  4 /* out of the stage: unseen, nothing to touch or stand on, until shown */
 
 typedef struct SmsCmd {
 	uint32_t size;     /* sizeof(SmsCmd) */

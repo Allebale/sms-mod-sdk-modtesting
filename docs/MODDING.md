@@ -704,11 +704,23 @@ Mods load once multiplayer has started, so `net->role()` is right while they loa
 | `SMS_CMD_ACTORS` | `i[0]..i[1]` actor types, `i[2]` `SMS_ACTORS_SHOW` / `HIDE` / `KILL` | `from`, `to`, `state` (`"show"`, `"hide"`, `"kill"`) | the stage's actors of those types: back, out of the stage (unseen, touching nothing) until shown, or gone (a Shine: `0x20000013`) |
 | `SMS_CMD_STOP_SCRIPT` | `text` the script's resource | `text` | the stage's event script loaded from there stopped (`"/scene/map/sp/gessoride.sb"`: Ricco's Blooper course's time trial) |
 | `SMS_CMD_STAY` | `i[0]` 1 or 0 | `on` | the player's own ways out of the stage (pipes, doors, Exit Area) lead nowhere: only the host moves them on |
+| `SMS_CMD_OBJECT` (1.4) | `i[0]..i[1]` actor types, `text` the object's kind, `i[2]` which (0 first; -1 each), `i[3]` `SMS_OBJECT_*`, `f[0..3]` | `from`, `to` (any type by default), `kind`, `index` (-1 by default: each), `what` (`"place"`, `"speed"`, `"phase"`, `"show"`, `"hide"`), `position`, `yaw`, `times`, `seconds` | one of the stage's objects (below) |
 
 Every command also takes:
 
 - **`delay_ms`** (Lua `delay`, seconds): carried out that long after it was sent, at the same moment in every game, each taking off half its round trip to the host. Send a start ahead of time with the time left as its delay, and everyone starts together.
-- **`SMS_CMD_STICKY`** (Lua `sticky = true`): kept for the session and carried out again for each player who arrives in it later: a newcomer, or a player back after a lost life (whose stage loads afresh). A sticky command replaces the last one of its kind sent to the same players (of its type; for `ACTORS`, its types; for `STOP_SCRIPT`, its script). It goes at once only to players already in the session; the others get it as they arrive.
+- **`SMS_CMD_STICKY`** (Lua `sticky = true`): kept for the session and carried out again for each player who arrives in it later: a newcomer, or a player back after a lost life (whose stage loads afresh). A sticky command replaces the last one of its kind sent to the same players (of its type; for `ACTORS`, its types; for `STOP_SCRIPT`, its script; for `OBJECT`, its object and what it does, `SHOW` and `HIDE` being one). It goes at once only to players already in the session; the others get it as they arrive.
+
+**One object** (`SMS_CMD_OBJECT`, API 1.4). The stage's objects of actor types `i[0]` to `i[1]` whose kind, as the stage names them, is `text` (a map object's name in the scene: `"WoodBlockCone"`, `"normallift"`, `"rollblocky"`; `""` any kind), and of those the `i[2]`th, in the order every game loads them (0 first), or each of them (-1). The game's log says what each one did, and where the first of them was (`[server] object ...`). `i[3]` says what:
+
+| `i[3]` | Takes | What |
+| --- | --- | --- |
+| `SMS_OBJECT_PLACE` | `f[0..2]` place, `f[3]` turn (degrees about the vertical; 0 as the stage has it) | there, its collision too, and that is where it goes back to; not one on a rail (its rail says where it goes) |
+| `SMS_OBJECT_SPEED` | `f[0]` times its own speed, up to 20 | a spinner turns faster or slower (the other way round when negative), a lift or moving platform goes along its rail faster or slower (0.05 at least) |
+| `SMS_OBJECT_PHASE` | `f[0]` seconds, up to 60 | back to how the stage loaded it, then that much of its own movement at once (a lift along its rail, a spinner round): where it would be by then, the same in every game whenever it loaded the stage. Send it with a `delay_ms` for the moment it should be so (the start of a race) |
+| `SMS_OBJECT_SHOW`, `SMS_OBJECT_HIDE` | | back; out of the stage (unseen, nothing to touch or stand on) until shown |
+
+Spinners are the `TRollBlock`s, lifts and platforms the `TRailMapObj`s on a rail; speed and phase do nothing to other objects.
 
 A command's effects last for the session it came in: when the host moves everyone on (`load_stage`, or the group leaving through a pipe), each game starts afresh, and the host replays the new session's sticky commands as each player arrives.
 
