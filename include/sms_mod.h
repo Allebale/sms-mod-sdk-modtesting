@@ -183,6 +183,10 @@ typedef enum SmsEventType {
 	/* Host: it opened a new stage session, which every player follows
 	   (SmsEvNetSession). Sticky commands of the last session are gone. */
 	SMS_EV_NET_SESSION = 29,
+	/* API 1.4. The stage's opening is over (its camera cutscene, the
+	   episode's name, "Go!") and the player has the controls: the first
+	   tick of play. SmsEvStage: the stage, and how it was reached (reason). */
+	SMS_EV_STAGE_START = 30,
 
 	/* core->event_id hands out ids from here for mods' own events. */
 	SMS_EV_CUSTOM_BASE = 0x10000
@@ -247,7 +251,29 @@ typedef struct SmsEvDraw {
 
 typedef struct SmsEvStage {
 	int area, episode; /* the stage: see docs/MODDING.md for the area numbers */
+	/* API 1.4 (check ev->size): why the game leaves (SMS_EV_STAGE_LEAVING,
+	   SMS_EV_LIFE_LOST, SMS_EV_FILE_SELECTED) or came (SMS_EV_STAGE_LOADED,
+	   SMS_EV_STAGE_START): SMS_LEAVE_*. For SMS_LEAVE_SHINE, the Shine
+	   (0..119); otherwise, or not known, -1. */
+	int reason;
+	int shine;
 } SmsEvStage;
+
+/* SmsEvStage.reason (API 1.4) */
+typedef enum SmsLeaveReason {
+	SMS_LEAVE_OTHER = 0,     /* none of these: the title, a movie's way on */
+	SMS_LEAVE_WAY_OUT = 1,   /* the stage's own way out: a pipe, a painting, a door, an event */
+	SMS_LEAVE_SHINE = 2,     /* a Shine ended the stage; its Shine Get and its save are over */
+	SMS_LEAVE_EXIT_AREA = 3, /* the pause menu's Exit Area */
+	SMS_LEAVE_LIFE_LOST = 4, /* Mario lost a life */
+	SMS_LEAVE_GAME_OVER = 5, /* Mario lost his last life */
+	SMS_LEAVE_WARP = 6,      /* a mod's game->warp */
+	SMS_LEAVE_FILE = 7       /* a file was chosen at file select */
+} SmsLeaveReason;
+
+/* SmsEvStage.episode: no episode named; for a world's way in from the plaza
+   (SMS_AREA_WORLD), its episode select chooses. */
+#define SMS_EPISODE_SELECT 255
 
 typedef struct SmsEvStageExit {
 	uint32_t code;     /* the game's (area + 1) << 8 | episode request */
@@ -977,6 +1003,60 @@ typedef struct SmsNetApi {
 	int (*set_respawn)(int slot, int how, const SmsVec3* p, float yaw);
 } SmsNetApi;
 
+/* ------------------------------------------------------------------ worlds and episodes (API 1.4) */
+
+/* api->world: the game's map of its stages, as its own menus see it. An area
+ * is one stage (SmsEvStage.area); a world is a place the plaza leads to, with
+ * its areas (Sirena Beach and Hotel Delfino), its secret courses and its
+ * eight episodes, each with its Shine. Worlds are named by the area the
+ * plaza leads into (Bianco Hills: 2). Super Mario Eclipse numbers its stages
+ * its own way: in its builds every area is SMS_AREA_NONE. */
+
+typedef enum SmsAreaKind {
+	SMS_AREA_NONE = 0,       /* no such area (or an Eclipse build) */
+	SMS_AREA_AIRSTRIP = 1,   /* Delfino Airstrip, where the story starts */
+	SMS_AREA_PLAZA = 2,      /* Delfino Plaza, and its parts */
+	SMS_AREA_WORLD = 3,      /* a world's way in from the plaza, with its episode select */
+	SMS_AREA_WORLD_PART = 4, /* another part of a world (Hotel Delfino, the park of Pinna Park) */
+	SMS_AREA_SECRET = 5,     /* a secret course */
+	SMS_AREA_FINAL = 6,      /* Corona Mountain */
+	SMS_AREA_TITLE = 7       /* the title screen's plaza (15) */
+} SmsAreaKind;
+
+typedef struct SmsWorldApi {
+	uint32_t size;
+	/* What an area is (SMS_AREA_*), and the world it belongs to: the area
+	   the plaza leads into (2 for every area of Bianco Hills, its secret
+	   courses too; 1 for the plaza's own; 0 the Airstrip; 52 Corona
+	   Mountain), or -1. */
+	int (*area_kind)(int area);
+	int (*world_of)(int area);
+	/* A world's episodes (any of its areas names it): how many (8 for the
+	   seven worlds, else 0); the Shine an episode is for (0..119, or -1);
+	   and its name as the game shows it, copied into out (one line, ASCII;
+	   returns its length, 0 when there is none). Episodes count from 0. */
+	int (*episode_count)(int area);
+	int (*episode_shine)(int area, int episode);
+	int (*episode_name)(int area, int episode, char* out, int size);
+	/* The episode the world's episode select offers first: the one after
+	   the newest whose Shine the file has (the first with none; the last
+	   when that is had). -1: no episodes. */
+	int (*next_episode)(int area);
+	/* The episode a Shine is the story Shine of, with its world in *area
+	   (may be NULL); -1 for the others (100 coins, blue coins, the plaza's). */
+	int (*shine_episode)(int shine, int* area);
+	/* The stage's camera cutscenes, by the names SMS_EV_CUTSCENE gives
+	   ("camera_sirena_gate_in"): whether the stage has one by that name; and
+	   play one as the game plays its own (the player waits, the HUD hides),
+	   centred on focus (NULL: as it was made), for `frames` (-1: as long as
+	   it is). Returns 1 when it is on its way: in a stage that is played,
+	   with no cutscene, talk or menu on. */
+	int (*has_cutscene)(const char* name);
+	int (*play_cutscene)(const char* name, const SmsVec3* focus, int frames);
+	/* A cutscene (the game's or a mod's) or a talk is on now. */
+	int (*cutscene_playing)(void);
+} SmsWorldApi;
+
 struct SmsApi {
 	uint32_t size;
 	uint16_t major, minor;
@@ -990,6 +1070,7 @@ struct SmsApi {
 	const SmsAudioApi* audio;
 	const SmsNativeApi* native;
 	const SmsNetApi* net;           /* API 1.2 (SMS_API_HAS(api, net)) */
+	const SmsWorldApi* world;       /* API 1.4 (SMS_API_HAS(api, world)) */
 };
 
 /* ------------------------------------------------------------------ the mod's side */

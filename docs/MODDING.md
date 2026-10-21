@@ -107,7 +107,7 @@ The game never builds this crate itself; this outline has not been run against a
    include(FetchContent)
    FetchContent_Declare(sms_mod_sdk
      GIT_REPOSITORY https://github.com/chasem-dev/sms-mod-sdk.git
-     GIT_TAG v1.3.0)
+     GIT_TAG v1.4.0)
    FetchContent_MakeAvailable(sms_mod_sdk)
    sms_add_mod(mod src/my_mod.c)
    ```
@@ -248,7 +248,8 @@ Subscribe with `core->subscribe(mod, type, fn, user, priority)`; `fn(mod, ev, us
 | `SMS_EV_DRAW` | once a frame, after `SMS_EV_FRAME` | `SmsEvDraw` canvas size, frame, mode | draw (the only place) |
 | `SMS_EV_STAGE_LOADED` | a stage's objects are loaded and set up | `SmsEvStage` area, episode | |
 | `SMS_EV_STAGE_EXIT_REQUEST` | the game asks to leave for another area (pipe, painting, script) | `SmsEvStageExit` code, area, episode, the asking actor | cancel (stay) |
-| `SMS_EV_STAGE_LEAVING` | the stage is about to change, any way out | `SmsEvStage` where it goes | change area/episode |
+| `SMS_EV_STAGE_LEAVING` | the stage is about to change, any way out | `SmsEvStage` where it goes, and (1.4) why: `reason`, `shine` | change area/episode |
+| `SMS_EV_STAGE_START` | (1.4) the stage's opening is over (its cutscene, the episode's name, "Go!") and the player has the controls | `SmsEvStage` the stage, and how it was reached | |
 | `SMS_EV_LIFE_LOST` | Mario lost a life and has lives left | `SmsEvStage` where he goes | change area/episode |
 | `SMS_EV_GAME_OVER` | Mario lost his last life | none | cancel (carry on as after any lost life) |
 | `SMS_EV_COINS_RESET` | a lost life is about to reset the coins | none | cancel (keep the coins) |
@@ -280,6 +281,8 @@ Notes:
 - `SMS_EV_CAMERA`: a new position or target changes only what is drawn this tick; the camera keeps following Mario as before. A new field of view is given to the camera for the tick (its culling and screen effects use it too) and taken back the next tick, unless the camera set one itself in the meantime.
 - `SMS_EV_TICK` and `SMS_EV_FRAME` are not the same clock: at 60 or 120 frames per second, see [Time](#time-units-and-frame-rate).
 - `SMS_EV_PAD_READ`: `input->pad` still answers with the controllers as read, before any mod's change.
+- `SmsEvStage.reason` (1.4; check `ev->size`) says why the game leaves a stage (`SMS_EV_STAGE_LEAVING`, `SMS_EV_LIFE_LOST`, `SMS_EV_FILE_SELECTED`) or how it came to this one (`SMS_EV_STAGE_LOADED`, `SMS_EV_STAGE_START`): `SMS_LEAVE_WAY_OUT` (a pipe, a painting, a door, an event), `SMS_LEAVE_SHINE` (a Shine ended the stage: its Shine Get and its save, by the prompt or Auto Save, are over; `shine` is which), `SMS_LEAVE_EXIT_AREA` (the pause menu), `SMS_LEAVE_LIFE_LOST`, `SMS_LEAVE_GAME_OVER`, `SMS_LEAVE_WARP` (a mod's `game->warp`), `SMS_LEAVE_FILE` (file select), `SMS_LEAVE_OTHER`.
+- `SMS_EV_STAGE_LEAVING` to a world's way in (`SMS_AREA_WORLD`) with an episode named goes straight to it, past the episode select, as if it had been chosen there: the game records the episode and starts the coins afresh. Episode `SMS_EPISODE_SELECT` (255) shows the episode select. Handlers that change where the game goes run before the multiplayer extension reads it, so on a host the players follow the stage chosen.
 
 ## The API
 
@@ -297,6 +300,7 @@ Notes:
 | `api->audio` | the game's sound effects |
 | `api->native` | the game's own objects, for mods built against the decomp's headers |
 | `api->net` | (1.2) the multiplayer game: its players, and on the host the commands to their games ([Server mods](#server-mods)) |
+| `api->world` | (1.4) the game's worlds, their areas and episodes, and its camera cutscenes ([world](#world)) |
 
 Every table starts with `size`, the size the game was built with. Tables only grow at their ends, so a mod checks a function from a later minor version is there with `SMS_API_HAS(api->draw, some_new_function)` before calling it.
 Structs a mod passes in for the game to fill (`SmsGameState`, `SmsPlayer`, `SmsCamera`, `SmsPad`) start with a `size` the mod sets to `sizeof` the struct; the game fills only that much, so an old mod works with a newer game and the other way round.
@@ -346,6 +350,44 @@ Objects (`SmsObject`) come from events and `find_object`; they are good until th
 
 `get(&c)` fills an `SmsCamera`: position, target, up, vertical field of view, aspect, near and far planes, and the view (3×4, world to camera) and projection (4×4) matrices it drew the last frame with.
 `world_to_canvas(&p, &x, &y, &depth)` gives where a world point is on the [canvas](#drawing) and returns 1 when it is in front of the camera.
+
+### world
+
+API 1.4 (`SMS_API_HAS(api, world)`). The game's map of its stages, as its menus read it. An **area** is one stage (`SmsEvStage.area`, [the numbers](#areas)); a **world** is a place the plaza leads to, with its areas (Sirena Beach and Hotel Delfino), its secret courses and its eight **episodes**, each with its Shine. A world is named by the area the plaza leads into: Bianco Hills is 2 wherever in it you are.
+
+| Function | Does |
+| --- | --- |
+| `area_kind(area)` | what an area is: `SMS_AREA_AIRSTRIP`, `PLAZA`, `WORLD` (a world's way in, with its episode select), `WORLD_PART` (another of its areas), `SECRET` (a secret course), `FINAL` (Corona Mountain), `TITLE` (area 15), `NONE` |
+| `world_of(area)` | the world an area belongs to (2 for each of Bianco Hills' areas and secret courses; 1 for the plaza's; 0 the Airstrip; 52 Corona Mountain), or -1 |
+| `episode_count(area)` | its world's episodes: 8 for the seven worlds, 0 elsewhere |
+| `episode_shine(area, episode)` | the Shine (0–119) an episode is for, or -1 |
+| `episode_name(area, episode, out, size)` | the episode's name as the game shows it, one line of ASCII; returns its length (0: none) |
+| `next_episode(area)` | the episode the world's episode select offers first: the one after the newest whose Shine the file has (the first with none, the last once it is had) |
+| `shine_episode(shine, &area)` | the episode a Shine is the story Shine of, and its world in `area` (may be NULL); -1 for 100-coin, blue coin and the plaza's Shines |
+| `has_cutscene(name)` | the stage has a camera cutscene by that name (the names `SMS_EV_CUTSCENE` reports: `"camera_sirena_gate_in"`) |
+| `play_cutscene(name, focus, frames)` | play one as the game plays its own (the player waits, the HUD hides), centred on `focus` (NULL: as it was made), `frames` long (-1: its own length); 1 when it is on its way, 0 outside play or while another cutscene, a talk or a menu is on |
+| `cutscene_playing()` | a cutscene (the game's or a mod's) or a talk is on |
+
+Super Mario Eclipse numbers its stages its own way: in its builds every area is `SMS_AREA_NONE` and has no episodes.
+
+An episode of its own, straight after a Shine, past the plaza and the episode select ([Seamless Episodes](https://github.com/chasem-dev/sms-seamless-episodes) is this, with its settings):
+
+```c
+static int on_leaving(SmsMod* mod, SmsEvent* ev, void* user)
+{
+    SmsEvStage* to = (SmsEvStage*)ev->data;
+    SmsGameState st = {sizeof st};
+    if (ev->size < sizeof *to || to->reason != SMS_LEAVE_SHINE || to->area != 1)
+        return SMS_CONTINUE; /* not a Shine's way back to the plaza */
+    api->game->state(&st);
+    int world = api->world->world_of(st.area);
+    if (api->world->episode_count(world) > 0) {
+        to->area = world;
+        to->episode = api->world->next_episode(world); /* its opening plays as ever */
+    }
+    return SMS_CONTINUE;
+}
+```
 
 ### draw, input, config, audio
 
@@ -503,7 +545,7 @@ They have Lua's whole standard library, `io` and `os` included, so a script mod 
 ### Events in Lua
 
 `sms.on(name, function(ev) ... end [, priority])` subscribes and returns a handle for `sms.off(handle)`.
-The names are the C events' without `SMS_EV_`, in lower case: `frame`, `tick`, `draw`, `stage_loaded`, `stage_exit_request`, `stage_leaving`, `life_lost`, `game_over`, `coins_reset`, `file_selected`, `item_collected`, `pad_read`, `key`, `cutscene`, `goop_cleaned`, `object_hit`, `save_state_request`, `hide_player_model`, `player_status`, `player_damage`, `shine_collected`, `camera`, `object_move`, `mod_loaded`, `shutdown`, and for multiplayer `net_player_joined`, `net_player_left`, `net_player_arrived`, `net_session` (`{slot, name, character}`; the session's `{area, episode, session}`).
+The names are the C events' without `SMS_EV_`, in lower case: `frame`, `tick`, `draw`, `stage_loaded`, `stage_exit_request`, `stage_leaving`, `life_lost`, `game_over`, `coins_reset`, `file_selected`, `item_collected`, `pad_read`, `key`, `cutscene`, `goop_cleaned`, `object_hit`, `save_state_request`, `hide_player_model`, `player_status`, `player_damage`, `shine_collected`, `camera`, `object_move`, `mod_loaded`, `shutdown`, and for multiplayer `net_player_joined`, `net_player_left`, `net_player_arrived`, `net_session` (`{slot, name, character}`; the session's `{area, episode, session}`), and (1.4) `stage_start`. Stage events (`stage_loaded`, `stage_leaving`, `stage_start`, `life_lost`, `file_selected`) carry `{area, episode, reason, shine}`, `reason` a name: `"shine"`, `"exit_area"`, `"life_lost"`, `"game_over"`, `"way_out"`, `"warp"`, `"file"` or `"other"`.
 Any other name is a custom event (`"stage-timer.split"`).
 Priorities: `sms.FIRST`, `sms.EARLY`, `sms.NORMAL` (the default), `sms.LATE`, `sms.MONITOR`.
 
@@ -572,6 +614,9 @@ Objects are light userdata, for `sms.object_name`, `sms.object_position` and `sm
 | `sms.option{key, label, type, default, min, max, step, choices, on_change}` | a setting in the Mods menu; `type` is `"bool"`, `"int"`, `"float"`, `"choice"` (with `choices = {"a", "b"}`) or `"action"`; `on_change(key)` after each change |
 | `sms.rgb(r, g, b)`, `sms.rgba(r, g, b, a)` | colours (or write `0xRRGGBBAA`) |
 | `sms.object_count(from, to, kind)`, `sms.object_info(from, to, kind, index)`, `sms.ground(pos)` | (1.4) the stage's objects (a table: `type`, `kind`, `position`, `rotation`, `scale`, `alive`, `hidden`, `spawned`), and the ground at a point (`floor`, `floor_type`, `water`, `water_y`, `roof`) |
+| `sms.world.kind(area)`, `sms.world.of(area)` | (1.4) what an area is (`"airstrip"`, `"plaza"`, `"world"`, `"world_part"`, `"secret"`, `"final"`, `"title"`, `"none"`); its world, or `nil` ([world](#world)) |
+| `sms.world.episodes(area)`, `sms.world.episode_shine(area, ep)`, `sms.world.episode_name(area, ep)`, `sms.world.next_episode(area)`, `sms.world.shine_episode(shine)` | its world's episodes: how many; an episode's Shine and name (`nil`: none); the one the episode select offers; a Shine's episode and world (`nil`: not an episode's) |
+| `sms.world.has_cutscene(name)`, `sms.world.play_cutscene(name [, focus [, frames]])`, `sms.world.cutscene_playing()` | the stage's camera cutscenes |
 | `sms.cube_count(set)`, `sms.in_cube(set, index, pos)` | the stage's trigger cubes: how many a set has; whether a point is in one (`nil`: no such cube). Sets: `"camera"`, `"area"`, `"fast_a"`, `"fast_b"`, `"fast_c"`, `"mirror"`, `"wire"`, `"stream"`, `"shadow"`, `"sound_change"`, `"sound_effect"` |
 
 `sms.net` is the multiplayer game ([Server mods](#server-mods)):
@@ -970,7 +1015,7 @@ Bits: `0x800` airborne, `0x2000` swimming, `0x400` running; `status & 0x1C0` is 
 ## Compatibility
 
 - The game loads a mod whose `sms_mod_api_version()` has the game's **major** version; another major is refused with a message.
-- The current version is **1.4** (1.4 added the stage's objects one at a time, spawning, players, rules and the HUD for server mods, and the stage's objects and ground for any mod; 1.1 added `core->mod_info` and `core->host_runtime`, for script mods; 1.2 added `api->net`, the `SMS_EV_NET_*` events and `game->in_cube`, for [server mods](#server-mods); 1.3 added players' versions and `client_api`, for [versions](#versions)).
+- The current version is **1.4** (1.1 added `core->mod_info` and `core->host_runtime`, for script mods; 1.2 added `api->net`, the `SMS_EV_NET_*` events and `game->in_cube`, for [server mods](#server-mods); 1.3 added players' versions and `client_api`, for [versions](#versions); 1.4 added the stage's objects one at a time, spawning, players, rules and the HUD for server mods, the stage's objects and ground for any mod, and `api->world`, `SmsEvStage.reason` and `SMS_EV_STAGE_START`, for [worlds and episodes](#world)).
 - **Minor versions only add**: events, functions at the ends of tables, fields at the ends of structs. A mod built for an older minor runs on a newer game unchanged. A mod built for a newer minor runs on an older game if it checks what it uses with `SMS_API_HAS` and `ev->size` (the game logs a note when a mod is newer than it).
 - Nothing in the API depends on the game's internal layout, so game updates (and the decomp's progress) do not break mods. `api->native` is the exception, by design.
 

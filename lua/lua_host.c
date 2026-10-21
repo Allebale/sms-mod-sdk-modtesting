@@ -222,7 +222,11 @@ static const struct {
 	{"net_player_left", SMS_EV_NET_PLAYER_LEFT},
 	{"net_player_arrived", SMS_EV_NET_PLAYER_ARRIVED},
 	{"net_session", SMS_EV_NET_SESSION},
+	{"stage_start", SMS_EV_STAGE_START},
 };
+
+static const char* const kLeaves[] = {"other", "way_out", "shine", "exit_area", "life_lost", "game_over", "warp", "file"};
+static const char* leaveName(int r) { return r >= 0 && r <= 7 ? kLeaves[r] : "other"; }
 
 static const char* const kModes[] = {"boot", "title", "menu", "stage", "movie", "other"};
 static const char* modeName(int m) { return m >= 0 && m <= 5 ? kModes[m] : "other"; }
@@ -322,10 +326,15 @@ static void pushEvent(lua_State* L, const SmsEvent* ev)
 	case SMS_EV_STAGE_LOADED:
 	case SMS_EV_STAGE_LEAVING:
 	case SMS_EV_LIFE_LOST:
-	case SMS_EV_FILE_SELECTED: {
+	case SMS_EV_FILE_SELECTED:
+	case SMS_EV_STAGE_START: {
 		const SmsEvStage* p = (const SmsEvStage*)d;
 		setint(L, "area", p->area);
 		setint(L, "episode", p->episode);
+		if (ev->size >= offsetof(SmsEvStage, shine) + sizeof p->shine) { /* API 1.4 */
+			setstr(L, "reason", leaveName(p->reason));
+			setint(L, "shine", p->shine);
+		}
 		break;
 	}
 	case SMS_EV_STAGE_EXIT_REQUEST: {
@@ -1599,6 +1608,110 @@ static int l_ground(lua_State* L)
 	return 1;
 }
 
+/* ------------------------------------------------------------------ sms.world (API 1.4) */
+
+static const char* const kAreaKinds[] = {"none", "airstrip", "plaza", "world", "world_part", "secret", "final", "title"};
+
+static int hasWorld(void) { return SMS_API_HAS(api, world) && api->world; }
+
+/* kind(area) -> "world", "plaza", ... ("none": no such area) */
+static int w_kind(lua_State* L)
+{
+	const int k = hasWorld() ? api->world->area_kind((int)luaL_checkinteger(L, 1)) : SMS_AREA_NONE;
+	lua_pushstring(L, k >= 0 && k <= 7 ? kAreaKinds[k] : "none");
+	return 1;
+}
+
+/* of(area) -> the world's area, or nil */
+static int w_of(lua_State* L)
+{
+	const int w = hasWorld() ? api->world->world_of((int)luaL_checkinteger(L, 1)) : -1;
+	if (w < 0)
+		return 0;
+	lua_pushinteger(L, w);
+	return 1;
+}
+
+static int w_episodes(lua_State* L)
+{
+	lua_pushinteger(L, hasWorld() ? api->world->episode_count((int)luaL_checkinteger(L, 1)) : 0);
+	return 1;
+}
+
+/* episode_shine(area, episode) -> the Shine, or nil */
+static int w_episode_shine(lua_State* L)
+{
+	const int n = hasWorld() ? api->world->episode_shine((int)luaL_checkinteger(L, 1), (int)luaL_checkinteger(L, 2)) : -1;
+	if (n < 0)
+		return 0;
+	lua_pushinteger(L, n);
+	return 1;
+}
+
+/* episode_name(area, episode) -> its name, or nil */
+static int w_episode_name(lua_State* L)
+{
+	char name[128];
+	if (!hasWorld() || api->world->episode_name((int)luaL_checkinteger(L, 1), (int)luaL_checkinteger(L, 2), name, sizeof name) <= 0)
+		return 0;
+	lua_pushstring(L, name);
+	return 1;
+}
+
+/* next_episode(area) -> the episode its episode select offers first, or nil */
+static int w_next_episode(lua_State* L)
+{
+	const int n = hasWorld() ? api->world->next_episode((int)luaL_checkinteger(L, 1)) : -1;
+	if (n < 0)
+		return 0;
+	lua_pushinteger(L, n);
+	return 1;
+}
+
+/* shine_episode(shine) -> episode, world (nil: not an episode's) */
+static int w_shine_episode(lua_State* L)
+{
+	int area = -1;
+	const int n = hasWorld() ? api->world->shine_episode((int)luaL_checkinteger(L, 1), &area) : -1;
+	if (n < 0)
+		return 0;
+	lua_pushinteger(L, n);
+	lua_pushinteger(L, area);
+	return 2;
+}
+
+static int w_has_cutscene(lua_State* L)
+{
+	lua_pushboolean(L, hasWorld() && api->world->has_cutscene(luaL_checkstring(L, 1)));
+	return 1;
+}
+
+/* play_cutscene(name [, focus] [, frames]) -> true when on its way */
+static int w_play_cutscene(lua_State* L)
+{
+	const char* name = luaL_checkstring(L, 1);
+	SmsVec3 focus;
+	const int has_focus = lua_istable(L, 2);
+	if (has_focus)
+		focus = checkvec(L, 2);
+	const int frames = (int)luaL_optinteger(L, 3, -1);
+	lua_pushboolean(L, hasWorld() && api->world->play_cutscene(name, has_focus ? &focus : NULL, frames));
+	return 1;
+}
+
+static int w_cutscene_playing(lua_State* L)
+{
+	lua_pushboolean(L, hasWorld() && api->world->cutscene_playing());
+	return 1;
+}
+
+static const luaL_Reg kWorld[] = {
+	{"kind", w_kind}, {"of", w_of}, {"episodes", w_episodes}, {"episode_shine", w_episode_shine},
+	{"episode_name", w_episode_name}, {"next_episode", w_next_episode}, {"shine_episode", w_shine_episode},
+	{"has_cutscene", w_has_cutscene}, {"play_cutscene", w_play_cutscene}, {"cutscene_playing", w_cutscene_playing},
+	{NULL, NULL},
+};
+
 static const luaL_Reg kSms[] = {
 	{"on", l_on}, {"off", l_off}, {"log", l_log}, {"warn", l_warn}, {"error", l_error}, {"debug", l_debug},
 	{"event_id", l_event_id}, {"emit", l_emit}, {"time", l_time}, {"is_loaded", l_is_loaded},
@@ -1658,6 +1771,8 @@ static void openSms(lua_State* L, Script* s)
 	lua_setfield(L, -2, "draw");
 	luaL_newlib(L, kNet);
 	lua_setfield(L, -2, "net");
+	luaL_newlib(L, kWorld);
+	lua_setfield(L, -2, "world");
 	constants(L);
 	setstr(L, "id", api->core->mod_id(s->mod));
 	setstr(L, "dir", api->core->mod_dir(s->mod));
