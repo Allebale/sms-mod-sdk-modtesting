@@ -331,6 +331,8 @@ Structs a mod passes in for the game to fill (`SmsGameState`, `SmsPlayer`, `SmsC
 | `object_name(obj)` | an object's name (often Japanese, Shift-JIS) |
 | `object_position(obj, &pos)`, `object_set_position(obj, &pos)` | for objects with a place in the world; 0 for others |
 | `area_name(area)` | the stage's display name in the game's language ("DELFINO PLAZA"), or "" |
+| `object_count(lo, hi, kind)`, `object_info(lo, hi, kind, index, &info)` | (1.4) the stage's objects of actor types `lo` to `hi` and of a kind (`"WoodBlockCone"`; `"@7"` the copy `SMS_CMD_SPAWN` made with id 7; `""` any), picked as [server commands](#one-object) pick them: how many, and the `index`th one's actor type, kind, position, rotation, scale, whether it is in the stage (`alive`), hidden by a command, or a copy (its id). On a host, this is the copy of the stage its server mods judge by |
+| `ground(&p, &g)` | (1.4) the ground at a point, as Mario finds it: the floor below (from a little above `p`), its collision type, whether it is water's surface, the water's surface over the point (`has_water`, `water_y`) and the roof above; 0 off the stage's map |
 
 Objects (`SmsObject`) come from events and `find_object`; they are good until the stage changes. Do not keep them across `SMS_EV_STAGE_LEAVING`.
 
@@ -569,6 +571,7 @@ Objects are light userdata, for `sms.object_name`, `sms.object_position` and `sm
 | `sms.set_setting(key, value)`, `sms.save_settings()` | change one; write them now |
 | `sms.option{key, label, type, default, min, max, step, choices, on_change}` | a setting in the Mods menu; `type` is `"bool"`, `"int"`, `"float"`, `"choice"` (with `choices = {"a", "b"}`) or `"action"`; `on_change(key)` after each change |
 | `sms.rgb(r, g, b)`, `sms.rgba(r, g, b, a)` | colours (or write `0xRRGGBBAA`) |
+| `sms.object_count(from, to, kind)`, `sms.object_info(from, to, kind, index)`, `sms.ground(pos)` | (1.4) the stage's objects (a table: `type`, `kind`, `position`, `rotation`, `scale`, `alive`, `hidden`, `spawned`), and the ground at a point (`floor`, `floor_type`, `water`, `water_y`, `roof`) |
 | `sms.cube_count(set)`, `sms.in_cube(set, index, pos)` | the stage's trigger cubes: how many a set has; whether a point is in one (`nil`: no such cube). Sets: `"camera"`, `"area"`, `"fast_a"`, `"fast_b"`, `"fast_c"`, `"mirror"`, `"wire"`, `"stream"`, `"shadow"`, `"sound_change"`, `"sound_effect"` |
 
 `sms.net` is the multiplayer game ([Server mods](#server-mods)):
@@ -577,7 +580,9 @@ Objects are light userdata, for `sms.object_name`, `sms.object_position` and `sm
 | --- | --- |
 | `sms.net.role()`, `sms.net.dedicated()`, `sms.net.slot()`, `sms.net.session()` | `"off"`, `"host"` or `"client"`; the host is a server; this game's slot; the stage session |
 | `sms.net.players()` | the slots in the game, a list |
-| `sms.net.player(slot)` | `nil`, or `{slot, server, character, name, color, in_stage, position, yaw, visible, surfing, yoshi, spectating, paused, cutscene, ping, game_version, api_version}` |
+| `sms.net.player(slot)` | `nil`, or `{slot, server, character, name, color, in_stage, position, yaw, visible, surfing, yoshi, spectating, paused, cutscene, ping, game_version, api_version, pad}` (`pad`, 1.4: `{buttons, stick_x, stick_y, cstick_x, cstick_y, trigger_l, trigger_r}`) |
+| `sms.net.set_look(slot, look)`, `sms.net.look(slot)` | (1.4) host: a player's colours forced (`nil`: their own again); anyone's as they are now |
+| `sms.net.set_respawn(slot, how, pos, yaw)` | (1.4) host: where a player comes back as they arrive: `"warp"`, `"blooper"` or `"none"` |
 | `sms.net.send(to, cmd)` | host: a [command](#commands) to `"all"`, a slot or a list of slots, as `{type = "banner", text = ..., color = ..., delay = seconds, sticky = true}`; returns the slots it went to as bits |
 | `sms.net.load_stage(area [, episode])` | host: everyone to that stage afresh |
 | `sms.net.set_mode(name)`, `sms.net.set_status(text)` | host: what the launcher's list of games shows |
@@ -671,6 +676,8 @@ Mods load once multiplayer has started, so `net->role()` is right while they loa
 | `send(to, &cmd)` | host: a command to players' games; returns the players it went to |
 | `load_stage(area, episode)` | host: everyone to that stage afresh, a new session even for the stage played now. A dedicated server at the title goes there; a hosting player, after the file select |
 | `set_mode(name)`, `set_status(text)` | host: what the launcher's list of games shows, the mode's name (`"squid-race"`, 15 characters) and a line of its state (`"Squid Race: racing"`) |
+| `set_look(slot, look)`, `look(slot, out, size)` | (1.4) host: a player's Customize Mario colours forced, Mario's and FLUDD's (`"hat=00d0ff;shirt=00d0ff;overalls=ff8000;fluddBody=ff00ff"`, the launcher's region names): in their own game (their own Mario repainted at once) and every other, for newcomers too, until set again; `NULL` gives them their own back. `look` reads anyone's as it is now |
+| `set_respawn(slot, how, &p, yaw)` | (1.4) host: where a player comes back each time they arrive in the session (just joined, back after a lost life): `SMS_RESPAWN_WARP` (there), `SMS_RESPAWN_BLOOPER` (onto a Blooper there) or `SMS_RESPAWN_NONE` (the stage's own start), after the session's sticky commands. It lasts until set again or the player leaves |
 
 `SmsNetPlayer`:
 
@@ -683,6 +690,7 @@ Mods load once multiplayer has started, so `net->role()` is right while they loa
 | `flags` | `SMS_NETP_VISIBLE` (in play), `SURFING` (on a Blooper), `YOSHI`, `SPECTATING` (out of lives), `PAUSED`, `CUTSCENE` |
 | `ping` | round trip in ms (-1 unknown) |
 | `game_version`, `api_version` | (1.3) what their game said when it joined: its version (the launcher's, `"2026.10.18.1"`) and the mod API it carries (`(major << 16) + minor`); the host knows everyone's, any game its own |
+| `pad` | (1.4) what they press, as their last update said: `SmsPadStatus` (`SMS_PAD_*` buttons, the sticks, the triggers), their controller as read, before a server holds it; `err` -1 when their game is older and does not say |
 
 ### Commands
 
@@ -695,7 +703,7 @@ Mods load once multiplayer has started, so `net->role()` is right while they loa
 | `SMS_CMD_STATUS` | `text` | `text` | a standing line at the top, shown while there is no news; `""` none |
 | `SMS_CMD_TIMER` | `i[0]` `SMS_TIMER_HIDE` / `SHOW` / `UP` / `DOWN`, `i[1]` hundredths | `mode` (`"hide"`, `"show"`, `"up"`, `"down"`), `seconds` | the HUD's clock, stopped at the time or counting up or down from it by itself |
 | `SMS_CMD_READY_GO` | `i[0]` ms until "Go!" | `go_in` (seconds) | the game's "Ready... Go!", "Go!" at that moment whatever the frame rate |
-| `SMS_CMD_SOUND` | `i[0]` a system sound (`SMS_SOUND_*`) | `id` | the sound |
+| `SMS_CMD_SOUND` | `i[0]` a system sound (`SMS_SOUND_*`); (1.4) `i[1]` 1 and `f[0..2]` a place | `id`, `position` | the sound; with a place, there in the world (heard from where the player is) |
 | `SMS_CMD_MUSIC` | `i[0]` background music (`SMS_MUSIC_*`, the game's `MSD_BGM_*`); 0 stops it | `id` | the music |
 | `SMS_CMD_WARP` | `f[0..2]` place, `f[3]` facing | `position`, `yaw` | the player there, as a warp puts them |
 | `SMS_CMD_HOLD` | `i[0]` 1 or 0 | `on` | the player's controls held (a Blooper they ride stops), or theirs again |
@@ -704,12 +712,23 @@ Mods load once multiplayer has started, so `net->role()` is right while they loa
 | `SMS_CMD_ACTORS` | `i[0]..i[1]` actor types, `i[2]` `SMS_ACTORS_SHOW` / `HIDE` / `KILL` | `from`, `to`, `state` (`"show"`, `"hide"`, `"kill"`) | the stage's actors of those types: back, out of the stage (unseen, touching nothing) until shown, or gone (a Shine: `0x20000013`) |
 | `SMS_CMD_STOP_SCRIPT` | `text` the script's resource | `text` | the stage's event script loaded from there stopped (`"/scene/map/sp/gessoride.sb"`: Ricco's Blooper course's time trial) |
 | `SMS_CMD_STAY` | `i[0]` 1 or 0 | `on` | the player's own ways out of the stage (pipes, doors, Exit Area) lead nowhere: only the host moves them on |
-| `SMS_CMD_OBJECT` (1.4) | `i[0]..i[1]` actor types, `text` the object's kind, `i[2]` which (0 first; -1 each), `i[3]` `SMS_OBJECT_*`, `f[0..3]` | `from`, `to` (any type by default), `kind`, `index` (-1 by default: each), `what` (`"place"`, `"speed"`, `"phase"`, `"show"`, `"hide"`), `position`, `yaw`, `times`, `seconds` | one of the stage's objects (below) |
+| `SMS_CMD_OBJECT` (1.4) | `i[0]..i[1]` actor types, `text` the object's kind, `i[2]` which (0 first; -1 each), `i[3]` `SMS_OBJECT_*`, `f[0..3]`, `f2[0]` | `from`, `to` (any type by default), `kind`, `index` (-1 by default: each), `what` (`"place"`, `"speed"`, `"phase"`, `"show"`, `"hide"`, `"scale"`, `"turn"`, `"move"`, `"kill"`), `position`, `yaw`, `times`, `seconds`, `size`, `turn` | one of the stage's objects ([below](#one-object)) |
+| `SMS_CMD_SPAWN` (1.4) | a copy: `i[0]..i[1]` types, `text` kind, `i[2]` which; an item: types 0 and 0, `text` its name; `i[3]` its id, `f[0..2]` place, `f[3]` turn | `from`, `to`, `kind`, `index`, or `item`; `id`, `position`, `yaw` | a new object in the stage ([below](#spawning)) |
+| `SMS_CMD_PLAYER` (1.4) | `i[0]` `SMS_PLAYER_*`, `i[1]` a value, `f[0..2]` a direction, `f[3]` a speed | `action` (`"lose_life"`, `"launch"`, `"dismount"`, `"health"`, `"water"`, `"nozzle"`), `value`, `direction`, `speed` | the player: the game's own miss now; thrown along a direction (40 a big push); off a Blooper or Yoshi; health 0 to 8; FLUDD's tank in percent; a nozzle (0 spray, 1 rocket, 2 underwater, 4 hover, 5 turbo) |
+| `SMS_CMD_RULES` (1.4) | `i[0]` `SMS_RULE_*` bits | `no_fludd`, `no_damage`, `no_pause`, `no_pickups` | what the player may do: FLUDD sprays nothing; no health lost (falls still cost a life); no pause menu or map; coins and items stay where they are. 0: everything again |
+| `SMS_CMD_BOARD` (1.4) | `i[0]` a row (0 to 7; -1 every row), `i[1]` colour, `text` | `row`, `color`, `text` | a board at the left: that row's text in its colour (white by default); `""` clears it. Sticky per row: standings, a lap counter |
+| `SMS_CMD_HUD` (1.4) | `i[0]` `SMS_HUD_*` bits | `coins`, `shines`, `blue_coins`, `health`, `water`, `lives`, `red_coins`, `all` | those parts of the HUD hidden (0: all back) |
+| `SMS_CMD_MARKER` (1.4) | `i[0]` a marker (0 to 7), `i[1]` a slot or -1, `i[2]` colour, `i[3]` 1 to take it away, `f[0..2]` a place, `text` | `id`, `slot`, `color`, `remove`, `position`, `text` | a marker on the picture over a place, or over a player: its text in a pill underlined in its colour, or an arrow pointing down when `""` |
+| `SMS_CMD_SCREEN` (1.4) | `i[0]` `SMS_SCREEN_*`, `i[1]` colour (its alpha the strongest), `f[0]` seconds | `effect` (`"clear"`, `"fade_out"`, `"fade_in"`, `"flash"`), `color`, `seconds` | the picture fades out to the colour (and stays), in from it, or flashes it; the text the server shows stays over it |
+| `SMS_CMD_SHAKE` (1.4) | `f[0]` how hard (1 a hard hit, up to 5), `f[1]` seconds | `strength`, `seconds` | the camera shakes, dying away |
+| `SMS_CMD_RUMBLE` (1.4) | `i[0]` 1 hard, 0 weak, `i[1]` times | `hard`, `times` | the player's controller rumbles (as their own rumble setting allows) |
 
 Every command also takes:
 
 - **`delay_ms`** (Lua `delay`, seconds): carried out that long after it was sent, at the same moment in every game, each taking off half its round trip to the host. Send a start ahead of time with the time left as its delay, and everyone starts together.
-- **`SMS_CMD_STICKY`** (Lua `sticky = true`): kept for the session and carried out again for each player who arrives in it later: a newcomer, or a player back after a lost life (whose stage loads afresh). A sticky command replaces the last one of its kind sent to the same players (of its type; for `ACTORS`, its types; for `STOP_SCRIPT`, its script; for `OBJECT`, its object and what it does, `SHOW` and `HIDE` being one). It goes at once only to players already in the session; the others get it as they arrive.
+- **`SMS_CMD_STICKY`** (Lua `sticky = true`): kept for the session and carried out again for each player who arrives in it later: a newcomer, or a player back after a lost life (whose stage loads afresh). A sticky command replaces the last one of its kind sent to the same players (of its type; for `ACTORS`, its types; for `STOP_SCRIPT`, its script; for `OBJECT`, its object and what it does, `SHOW` and `HIDE` being one; for `SPAWN`, its id; for `PLAYER`, its action; for `BOARD`, its row; for `MARKER`, its marker). It goes at once only to players already in the session; the others get it as they arrive. A session keeps up to 192.
+- **`SMS_CMD_UNSTICK`** (1.4; Lua `unstick = true`): sends nothing, and forgets the sticky command of its kind (as above, to the same players), so newcomers no longer get it. What it did in the games already there stays; send the opposite for that.
+- **`f2[0..3]`** (1.4): four more numbers after `text`, the commands' `f[4..7]`, taken when `size` covers them (a mod built for 1.4 or later always does). `SMS_OBJECT_MOVE`'s seconds are `f2[0]`.
 
 **One object** (`SMS_CMD_OBJECT`, API 1.4). The stage's objects of actor types `i[0]` to `i[1]` whose kind, as the stage names them, is `text` (a map object's name in the scene: `"WoodBlockCone"`, `"normallift"`, `"rollblocky"`; `""` any kind), and of those the `i[2]`th, in the order every game loads them (0 first), or each of them (-1). The game's log says what each one did, and where the first of them was (`[server] object ...`). `i[3]` says what:
 
@@ -719,8 +738,22 @@ Every command also takes:
 | `SMS_OBJECT_SPEED` | `f[0]` times its own speed, up to 20 | a spinner turns faster or slower (the other way round when negative), a lift or moving platform goes along its rail faster or slower (0.05 at least) |
 | `SMS_OBJECT_PHASE` | `f[0]` seconds, up to 60 | back to how the stage loaded it, then that much of its own movement at once (a lift along its rail, a spinner round): where it would be by then, the same in every game whenever it loaded the stage. Send it with a `delay_ms` for the moment it should be so (the start of a race) |
 | `SMS_OBJECT_SHOW`, `SMS_OBJECT_HIDE` | | back; out of the stage (unseen, nothing to touch or stand on) until shown |
+| `SMS_OBJECT_SCALE` | `f[0..2]` its size about x, y, z (1 as made) | bigger or smaller, its collision with it |
+| `SMS_OBJECT_TURN` | `f[0..2]` its turn about x, y, z, degrees | turned every way (not one on a rail) |
+| `SMS_OBJECT_MOVE` | `f[0..2]` a place, `f[3]` its turn about the vertical, `f2[0]` seconds | glides there (easing in and out), a movement tick at a time, and that is where it goes back to; its collision is set up there when it arrives (not one on a rail) |
+| `SMS_OBJECT_KILL` | | gone for this stage (a coin collected, as the game takes things away for good) |
 
 Spinners are the `TRollBlock`s, lifts and platforms the `TRailMapObj`s on a rail; speed and phase do nothing to other objects.
+
+### Spawning
+
+`SMS_CMD_SPAWN` (1.4) puts a new object in every player's stage: a **copy** of one the stage has, or an **item**.
+
+- **A copy** of any object the stage loaded (a block, a lift, a Blooper, an NPC, an enemy), picked as `SMS_CMD_OBJECT` picks them (`i[0]..i[1]` types, `text` its kind, `i[2]` which), at `f[0..2]` turned `f[3]` degrees. The game makes it as the stage's loader made the original, from the original's own record in the stage's `scene.bin` with the new place: its manager takes it, it is checked against Mario as the rest are, and it moves, animates and draws as they do. Objects the game made itself (not from the stage's file) cannot be copied.
+- **An item**, with types 0 and 0 and its name in `text` (`SMS_SPAWN_COIN`, `"coin"`, any stage; and others while one of their kind is in the stage, as its model is loaded then: `"coin_red"`, `"1up"`, `"bottle_large"`, `"FruitBanana"` and the other fruits...). A name the stage has no model for is refused (the game's log says so).
+- **Its id**, `i[3]` (1 or more, the mod's own), names it from then on: `SMS_CMD_OBJECT` and `game->object_info` with the kind `"@<id>"` (`"@7"`) reach it, to move, turn, scale, hide or kill it. A spawn with an id that is there already moves that one instead.
+- **Sticky**, as every spawn should be: a player arriving later, or back after a lost life, gets the same objects, in the same order (so multiplayer's item and enemy sync line up), and the later commands to them after.
+- **Limits:** a stage has up to 128 spawns, 12 of them copies of objects with collision (blocks, lifts: the map's collision lists are its own, fixed), and only while the stage's memory has room (the game's log says when not). Nothing a stage makes is freed before it ends; kill what is done with rather than spawning anew. A copy keeps the original's name, so the stage's own scripts still find the original.
 
 A command's effects last for the session it came in: when the host moves everyone on (`load_stage`, or the group leaving through a pipe), each game starts afresh, and the host replays the new session's sticky commands as each player arrives.
 
@@ -832,9 +865,9 @@ A server mod says what it needs of the players' games with `client_api = 1.2` in
 ### Limits, and what is next
 
 - **The commands are what players' games can do.** A new kind of command needs a new game build (an API minor version), and the players need it too, as for any change to the game; a server mod checks `SMS_API_HAS` as any mod does.
-- **No new things in players' worlds yet:** no models, objects or text of the mod's own; it can move, hide and show what the stage has. Planned: spawning the game's own actors, text in the world, and the HUD's other counters.
+- **Players' worlds have only what the game has:** a server mod can copy and spawn what the stage has (its objects, its items) and mark places with text, but not bring models of its own. Planned: actors the stage does not have, from other stages' files.
 - **The host believes players' positions,** as multiplayer believes their games: a changed game could claim to be anywhere. Fine among friends; a public server cannot stop cheating this way.
-- **Players' input** reaches a server mod only through where they are and what they do (their flags). Planned: the buttons each player presses, and companion mods players install alongside (`side = both`), for what a server mod alone cannot show.
+- **Players' input** reaches a server mod as each player's controller in their updates (`SmsNetPlayer.pad`, 1.4), 30 or so a second: enough for votes and "ready", not for frame-exact timing. Planned: companion mods players install alongside (`side = both`), for what a server mod alone cannot show.
 
 ## Time, units and frame rate
 
@@ -937,7 +970,7 @@ Bits: `0x800` airborne, `0x2000` swimming, `0x400` running; `status & 0x1C0` is 
 ## Compatibility
 
 - The game loads a mod whose `sms_mod_api_version()` has the game's **major** version; another major is refused with a message.
-- The current version is **1.3** (1.1 added `core->mod_info` and `core->host_runtime`, for script mods; 1.2 added `api->net`, the `SMS_EV_NET_*` events and `game->in_cube`, for [server mods](#server-mods); 1.3 added players' versions and `client_api`, for [versions](#versions)).
+- The current version is **1.4** (1.4 added the stage's objects one at a time, spawning, players, rules and the HUD for server mods, and the stage's objects and ground for any mod; 1.1 added `core->mod_info` and `core->host_runtime`, for script mods; 1.2 added `api->net`, the `SMS_EV_NET_*` events and `game->in_cube`, for [server mods](#server-mods); 1.3 added players' versions and `client_api`, for [versions](#versions)).
 - **Minor versions only add**: events, functions at the ends of tables, fields at the ends of structs. A mod built for an older minor runs on a newer game unchanged. A mod built for a newer minor runs on an older game if it checks what it uses with `SMS_API_HAS` and `ev->size` (the game logs a note when a mod is newer than it).
 - Nothing in the API depends on the game's internal layout, so game updates (and the decomp's progress) do not break mods. `api->native` is the exception, by design.
 

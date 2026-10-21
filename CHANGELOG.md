@@ -4,10 +4,15 @@ A release's tag is the API version (`v1.1.0` is API 1.1). Within a major version
 
 ## 1.4.0
 
-The stage's objects, one at a time, for server mods (docs/MODDING.md, "One object").
+Server mods change and add to the stage, and run the players' games further (docs/MODDING.md, "Server mods").
 
-- `SMS_CMD_OBJECT`: one of the stage's objects (by actor types, its kind as the stage names it, and which of them), or each of a kind: placed and turned (`SMS_OBJECT_PLACE`), a spinner or a lift on its rail at a speed of its own (`SPEED`), moved on from how the stage loaded it to a moment of its own, the same in every game (`PHASE`), shown or hidden, its collision with it (`SHOW`, `HIDE`). Sticky per object and what it does. In Lua, `sms.net.send(to, { type = "object", kind = "WoodBlockCone", index = 0, what = "place", position = ..., yaw = ... })`.
-- A sticky command replaces the last of its kind; a session keeps up to 192 of them (64 before), so a mod can set each of a stage's objects.
+- `SMS_CMD_OBJECT`: one of the stage's objects (by actor types, its kind as the stage names it, and which of them), or each of a kind: placed and turned (`SMS_OBJECT_PLACE`), a spinner or a lift on its rail at a speed of its own (`SPEED`), moved on from how the stage loaded it to a moment of its own, the same in every game (`PHASE`), shown or hidden, its collision with it (`SHOW`, `HIDE`), sized (`SCALE`), turned every way (`TURN`), gliding to a place (`MOVE`), or gone (`KILL`). Sticky per object and what it does.
+- `SMS_CMD_SPAWN`: a copy of any object the stage loaded (made again from its record in the stage's file, at a new place), or an item by name (coins, and what the stage has the model of), with the mod's own id; `"@<id>"` then names it to `SMS_CMD_OBJECT` and `game->object_info`.
+- `SMS_CMD_PLAYER` (the game's own miss, a launch, off a Blooper or Yoshi, health, water, nozzle), `SMS_CMD_RULES` (no FLUDD, no damage, no pause, no pickups), `SMS_CMD_BOARD` (eight rows of standings at the left), `SMS_CMD_HUD` (its parts hidden), `SMS_CMD_MARKER` (text or an arrow over a place or a player), `SMS_CMD_SCREEN` (fade out, fade in, flash), `SMS_CMD_SHAKE` and `SMS_CMD_RUMBLE`; `SMS_CMD_SOUND` at a place in the world.
+- `SmsCmd.f2`: four more numbers (after `text`, taken when `size` covers them), and `SMS_CMD_UNSTICK`: a sticky command forgotten. A session keeps up to 192 sticky commands (64 before).
+- `net->set_look` and `net->look`: a player's Customize Mario and FLUDD colours forced in every game (their own Mario repainted at once); `net->set_respawn`: where a player comes back as they arrive. `SmsNetPlayer.pad`: what each player presses.
+- `game->object_count`, `game->object_info` and `game->ground`: the stage's objects (types, kinds, places, sizes, alive or hidden) and the ground, water and roof at a point, for any mod.
+- In Lua: every command by name (`sms.net.send(to, { type = "spawn", kind = "WoodBlockCone", index = 0, id = 1, position = ... })`), `sms.net.set_look`, `look`, `set_respawn`, `sms.net.player(slot).pad`, `sms.object_count`, `sms.object_info`, `sms.ground`.
 
 ## 1.3.0
 

@@ -1232,6 +1232,49 @@ static int n_player(lua_State* L)
 		lua_pushfstring(L, "%d.%d", (int)(p.api_version >> 16), (int)(p.api_version & 0xFFFF));
 		lua_setfield(L, -2, "api_version");
 	}
+	if (p.size >= offsetof(SmsNetPlayer, pad) + sizeof p.pad && !p.pad.err) { /* API 1.4 */
+		lua_createtable(L, 0, 7);
+		setint(L, "buttons", p.pad.buttons);
+		setint(L, "stick_x", p.pad.stick_x);
+		setint(L, "stick_y", p.pad.stick_y);
+		setint(L, "cstick_x", p.pad.cstick_x);
+		setint(L, "cstick_y", p.pad.cstick_y);
+		setint(L, "trigger_l", p.pad.trigger_l);
+		setint(L, "trigger_r", p.pad.trigger_r);
+		lua_setfield(L, -2, "pad");
+	}
+	return 1;
+}
+
+/* set_look(slot, look or nil) -> true; look(slot) -> "hat=...;..." */
+static int n_set_look(lua_State* L)
+{
+	const int slot = (int)luaL_checkinteger(L, 1);
+	lua_pushboolean(L, hasNet() && SMS_API_HAS(api->net, set_look) && api->net->set_look(slot, luaL_optstring(L, 2, NULL)));
+	return 1;
+}
+
+static int n_look(lua_State* L)
+{
+	char look[512];
+	look[0] = 0;
+	if (hasNet() && SMS_API_HAS(api->net, look))
+		api->net->look((int)luaL_checkinteger(L, 1), look, (int)sizeof look);
+	lua_pushstring(L, look);
+	return 1;
+}
+
+/* set_respawn(slot, "none" | "warp" | "blooper", position, yaw) -> true */
+static int n_set_respawn(lua_State* L)
+{
+	static const char* const kHow[] = {"none", "warp", "blooper", NULL};
+	const int slot = (int)luaL_checkinteger(L, 1);
+	const int how  = luaL_checkoption(L, 2, "none", kHow);
+	SmsVec3 p      = {0, 0, 0};
+	if (how)
+		p = checkvec(L, 3);
+	lua_pushboolean(L, hasNet() && SMS_API_HAS(api->net, set_respawn)
+	                       && api->net->set_respawn(slot, how, &p, (float)luaL_optnumber(L, 4, 0)));
 	return 1;
 }
 
@@ -1294,10 +1337,16 @@ static int fieldchoice(lua_State* L, int t, const char* k, const char* const* na
 static int n_send(lua_State* L)
 {
 	static const char* const kTypes[] = {"", "banner", "notice", "status", "timer", "ready_go", "sound", "music",
-	                                     "warp", "hold", "mount", "watch", "actors", "stop_script", "stay", "object"};
+	                                     "warp", "hold", "mount", "watch", "actors", "stop_script", "stay", "object",
+	                                     "spawn", "player", "rules", "board", "hud", "marker", "screen", "shake",
+	                                     "rumble"};
 	static const char* const kTimer[]  = {"hide", "show", "up", "down"};
 	static const char* const kActors[] = {"show", "hide", "kill"};
-	static const char* const kObject[] = {"place", "speed", "phase", "show", "hide"};
+	static const char* const kObject[] = {"place", "speed", "phase", "show", "hide", "scale", "turn", "move", "kill"};
+	static const char* const kPlayer[] = {"lose_life", "launch", "dismount", "health", "water", "nozzle"};
+	static const char* const kScreen[] = {"clear", "fade_out", "fade_in", "flash"};
+	static const char* const kRules[]  = {"no_fludd", "no_damage", "no_pause", "no_pickups"};
+	static const char* const kHud[]    = {"coins", "shines", "blue_coins", "health", "water", "lives", "red_coins"};
 	luaL_checktype(L, 2, LUA_TTABLE);
 	const uint32_t to = toMask(L, 1);
 	SmsCmd c;
@@ -1305,9 +1354,9 @@ static int n_send(lua_State* L)
 	memset(&c, 0, sizeof c);
 	c.size = sizeof c;
 	c.type = (uint32_t)fieldchoice(L, 2, "type", kTypes, (int)(sizeof kTypes / sizeof kTypes[0]), 0);
-	if (!c.type || c.type > SMS_CMD_OBJECT)
+	if (!c.type || c.type > SMS_CMD_RUMBLE)
 		return luaL_error(L, "sms.net.send: no such command type");
-	c.flags    = fieldbool(L, 2, "sticky") ? SMS_CMD_STICKY : 0;
+	c.flags    = (fieldbool(L, 2, "sticky") ? SMS_CMD_STICKY : 0) | (fieldbool(L, 2, "unstick") ? SMS_CMD_UNSTICK : 0);
 	c.delay_ms = (uint32_t)(fieldnum(L, 2, "delay", 0) * 1000.0f);
 	lua_getfield(L, 2, "text");
 	c.text = lua_tostring(L, -1); /* kept on the stack until sent */
@@ -1322,6 +1371,14 @@ static int n_send(lua_State* L)
 		break;
 	case SMS_CMD_READY_GO: c.i[0] = (int32_t)(fieldnum(L, 2, "go_in", 0) * 1000.0f); break;
 	case SMS_CMD_SOUND:
+		c.i[0] = (int32_t)(uint32_t)fieldint(L, 2, "id", 0);
+		lua_getfield(L, 2, "position"); /* given: in the world there */
+		if (!lua_isnil(L, -1)) {
+			c.i[1] = 1;
+			c.f[0] = at.x, c.f[1] = at.y, c.f[2] = at.z;
+		}
+		lua_pop(L, 1);
+		break;
 	case SMS_CMD_MUSIC: c.i[0] = (int32_t)(uint32_t)fieldint(L, 2, "id", 0); break;
 	case SMS_CMD_MOUNT:
 		c.i[0] = (int32_t)fieldint(L, 2, "from", 0x400000C5);
@@ -1345,17 +1402,86 @@ static int n_send(lua_State* L)
 		c.i[0] = (int32_t)(uint32_t)fieldint(L, 2, "from", 0);
 		c.i[1] = (int32_t)(uint32_t)fieldint(L, 2, "to", c.i[0] ? c.i[0] : (lua_Integer)0xFFFFFFFFu);
 		c.i[2] = (int32_t)fieldint(L, 2, "index", -1);
-		c.i[3] = fieldchoice(L, 2, "what", kObject, 5, SMS_OBJECT_PLACE);
+		c.i[3] = fieldchoice(L, 2, "what", kObject, 9, SMS_OBJECT_PLACE);
 		lua_getfield(L, 2, "kind");
 		c.text = lua_tostring(L, -1); /* kept on the stack until sent */
-		if (c.i[3] == SMS_OBJECT_PLACE) {
-			c.f[0] = at.x;
-			c.f[1] = at.y;
-			c.f[2] = at.z;
-			c.f[3] = fieldnum(L, 2, "yaw", 0);
+		if (c.i[3] == SMS_OBJECT_PLACE || c.i[3] == SMS_OBJECT_MOVE) {
+			c.f[0]  = at.x;
+			c.f[1]  = at.y;
+			c.f[2]  = at.z;
+			c.f[3]  = fieldnum(L, 2, "yaw", 0);
+			c.f2[0] = fieldnum(L, 2, "seconds", 0);
+		} else if (c.i[3] == SMS_OBJECT_SCALE || c.i[3] == SMS_OBJECT_TURN) {
+			SmsVec3 v = {1, 1, 1};
+			if (c.i[3] == SMS_OBJECT_TURN)
+				v.x = v.y = v.z = 0;
+			lua_getfield(L, 2, c.i[3] == SMS_OBJECT_SCALE ? "size" : "turn");
+			tovec(L, -1, &v);
+			lua_pop(L, 1);
+			c.f[0] = v.x, c.f[1] = v.y, c.f[2] = v.z;
 		} else {
 			c.f[0] = fieldnum(L, 2, c.i[3] == SMS_OBJECT_SPEED ? "times" : "seconds", c.i[3] == SMS_OBJECT_SPEED ? 1 : 0);
 		}
+		break;
+	case SMS_CMD_SPAWN:
+		lua_getfield(L, 2, "item"); /* an item by its name, or a copy of the stage's */
+		if (lua_isstring(L, -1)) {
+			c.text = lua_tostring(L, -1);
+		} else {
+			c.i[0] = (int32_t)(uint32_t)fieldint(L, 2, "from", 0);
+			c.i[1] = (int32_t)(uint32_t)fieldint(L, 2, "to", c.i[0] ? c.i[0] : (lua_Integer)0xFFFFFFFFu);
+			c.i[2] = (int32_t)fieldint(L, 2, "index", 0);
+			lua_getfield(L, 2, "kind");
+			c.text = lua_tostring(L, -1);
+		}
+		c.i[3] = (int32_t)fieldint(L, 2, "id", 0);
+		c.f[0] = at.x, c.f[1] = at.y, c.f[2] = at.z;
+		c.f[3] = fieldnum(L, 2, "yaw", 0);
+		break;
+	case SMS_CMD_PLAYER: {
+		SmsVec3 dir = {0, 1, 0};
+		c.i[0] = fieldchoice(L, 2, "action", kPlayer, 6, SMS_PLAYER_LOSE_LIFE);
+		c.i[1] = (int32_t)fieldint(L, 2, "value", 0);
+		lua_getfield(L, 2, "direction");
+		tovec(L, -1, &dir);
+		lua_pop(L, 1);
+		c.f[0] = dir.x, c.f[1] = dir.y, c.f[2] = dir.z;
+		c.f[3] = fieldnum(L, 2, "speed", 40);
+		break;
+	}
+	case SMS_CMD_RULES:
+		for (int k = 0; k < 4; k++)
+			if (fieldbool(L, 2, kRules[k]))
+				c.i[0] |= 1 << k;
+		break;
+	case SMS_CMD_HUD:
+		for (int k = 0; k < 7; k++)
+			if (fieldbool(L, 2, kHud[k]) || fieldbool(L, 2, "all"))
+				c.i[0] |= 1 << k;
+		break;
+	case SMS_CMD_BOARD:
+		c.i[0] = (int32_t)fieldint(L, 2, "row", 0);
+		c.i[1] = (int32_t)fieldint(L, 2, "color", 0);
+		break;
+	case SMS_CMD_MARKER:
+		c.i[0] = (int32_t)fieldint(L, 2, "id", 0);
+		c.i[1] = (int32_t)fieldint(L, 2, "slot", -1);
+		c.i[2] = (int32_t)fieldint(L, 2, "color", 0);
+		c.i[3] = fieldbool(L, 2, "remove");
+		c.f[0] = at.x, c.f[1] = at.y, c.f[2] = at.z;
+		break;
+	case SMS_CMD_SCREEN:
+		c.i[0] = fieldchoice(L, 2, "effect", kScreen, 4, SMS_SCREEN_CLEAR);
+		c.i[1] = (int32_t)fieldint(L, 2, "color", (lua_Integer)SMS_RGB(0, 0, 0));
+		c.f[0] = fieldnum(L, 2, "seconds", 0.5f);
+		break;
+	case SMS_CMD_SHAKE:
+		c.f[0] = fieldnum(L, 2, "strength", 1);
+		c.f[1] = fieldnum(L, 2, "seconds", 0.5f);
+		break;
+	case SMS_CMD_RUMBLE:
+		c.i[0] = fieldbool(L, 2, "hard");
+		c.i[1] = (int32_t)fieldint(L, 2, "times", 1);
 		break;
 	default: break;
 	}
@@ -1386,7 +1512,8 @@ static int n_set_status(lua_State* L)
 static const luaL_Reg kNet[] = {
 	{"role", n_role}, {"dedicated", n_dedicated}, {"slot", n_slot}, {"session", n_session},
 	{"players", n_players}, {"player", n_player}, {"send", n_send}, {"load_stage", n_load_stage},
-	{"set_mode", n_set_mode}, {"set_status", n_set_status},
+	{"set_mode", n_set_mode}, {"set_status", n_set_status}, {"set_look", n_set_look}, {"look", n_look},
+	{"set_respawn", n_set_respawn},
 	{NULL, NULL},
 };
 
@@ -1422,6 +1549,56 @@ static int l_in_cube(lua_State* L)
 	return 1;
 }
 
+/* The stage's objects (API 1.4): object_count(from, to, kind) -> n;
+   object_info(from, to, kind, index) -> {type, kind, position, rotation,
+   scale, alive, hidden, spawned} or nil; ground(position) -> {floor,
+   floor_type, water, water_y, roof} or nil. Kind "@id": a spawned copy. */
+static int l_object_count(lua_State* L)
+{
+	const uint32_t from = (uint32_t)luaL_optinteger(L, 1, 0), to = (uint32_t)luaL_optinteger(L, 2, 0xFFFFFFFFu);
+	lua_pushinteger(L, SMS_API_HAS(api->game, object_count) ? api->game->object_count(from, to, luaL_optstring(L, 3, "")) : 0);
+	return 1;
+}
+
+static int l_object_info(lua_State* L)
+{
+	const uint32_t from = (uint32_t)luaL_optinteger(L, 1, 0), to = (uint32_t)luaL_optinteger(L, 2, 0xFFFFFFFFu);
+	SmsObjectInfo o;
+	memset(&o, 0, sizeof o);
+	o.size = sizeof o;
+	if (!SMS_API_HAS(api->game, object_info)
+	    || !api->game->object_info(from, to, luaL_optstring(L, 3, ""), (int)luaL_optinteger(L, 4, 0), &o))
+		return 0;
+	lua_createtable(L, 0, 8);
+	setint(L, "type", (lua_Integer)o.type);
+	setstr(L, "kind", o.kind);
+	setvec(L, "position", &o.position);
+	setvec(L, "rotation", &o.rotation);
+	setvec(L, "scale", &o.scale);
+	setbool(L, "alive", o.alive);
+	setbool(L, "hidden", o.hidden);
+	setint(L, "spawned", o.spawned);
+	return 1;
+}
+
+static int l_ground(lua_State* L)
+{
+	const SmsVec3 p = checkvec(L, 1);
+	SmsGround g;
+	memset(&g, 0, sizeof g);
+	g.size = sizeof g;
+	if (!SMS_API_HAS(api->game, ground) || !api->game->ground(&p, &g))
+		return 0;
+	lua_createtable(L, 0, 5);
+	setnum(L, "floor", g.floor);
+	setint(L, "floor_type", (lua_Integer)g.floor_type);
+	setbool(L, "water", g.water);
+	if (g.has_water)
+		setnum(L, "water_y", g.water_y);
+	setnum(L, "roof", g.roof);
+	return 1;
+}
+
 static const luaL_Reg kSms[] = {
 	{"on", l_on}, {"off", l_off}, {"log", l_log}, {"warn", l_warn}, {"error", l_error}, {"debug", l_debug},
 	{"event_id", l_event_id}, {"emit", l_emit}, {"time", l_time}, {"is_loaded", l_is_loaded},
@@ -1437,6 +1614,7 @@ static const luaL_Reg kSms[] = {
 	{"setting", l_setting}, {"set_setting", l_set_setting}, {"save_settings", l_save_settings},
 	{"option", l_option}, {"rgb", l_rgb}, {"rgba", l_rgb},
 	{"cube_count", l_cube_count}, {"in_cube", l_in_cube},
+	{"object_count", l_object_count}, {"object_info", l_object_info}, {"ground", l_ground},
 	{NULL, NULL},
 };
 
