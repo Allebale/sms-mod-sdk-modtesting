@@ -27,6 +27,11 @@
  * size as the game built it, so a mod built against a newer minor version
  * checks a function is there with SMS_API_HAS before calling it. A new major
  * version is an incompatible change; the game refuses mods of another major.
+ *
+ * Pre-releases: v1.5.0-beta.1, -beta.2, ... lead to v1.5.0. A beta has the
+ * next minor version and SMS_MOD_API_PRERELEASE its number; what a beta added
+ * may still change before the release, so a mod built against one is rebuilt
+ * against the release (the game warns of a mod built against another beta).
  */
 #ifndef SMS_MOD_H
 #define SMS_MOD_H
@@ -36,6 +41,8 @@
 
 #define SMS_MOD_API_MAJOR 1
 #define SMS_MOD_API_MINOR 5
+/* 0 in a release; N in the pre-release vMAJOR.MINOR.0-beta.N (API 1.5) */
+#define SMS_MOD_API_PRERELEASE 1
 #define SMS_MOD_API_VERSION ((uint32_t)SMS_MOD_API_MAJOR << 16 | SMS_MOD_API_MINOR)
 
 #if defined(_WIN32)
@@ -1120,6 +1127,9 @@ struct SmsApi {
 	const SmsNativeApi* native;
 	const SmsNetApi* net;           /* API 1.2 (SMS_API_HAS(api, net)) */
 	const SmsWorldApi* world;       /* API 1.4 (SMS_API_HAS(api, world)) */
+	/* API 1.5: the game's SMS_MOD_API_PRERELEASE, 0 when it carries a release
+	   of its minor version (check api->size). */
+	uint32_t prerelease;
 };
 
 /* ------------------------------------------------------------------ the mod's side */
@@ -1137,8 +1147,11 @@ typedef int (*SmsModLoadFn)(SmsMod* mod, const SmsApi* api);
 typedef void (*SmsModUnloadFn)(SmsMod* mod);
 typedef uint32_t (*SmsModVersionFn)(void);
 
+/* sms_mod_api_prerelease (API 1.5): the pre-release the mod was built
+   against, 0 for a release; a mod without it was built against a release. */
 #define SMS_MOD_DEFINE() \
-	SMS_MOD_EXTERN_C SMS_MOD_EXPORT uint32_t sms_mod_api_version(void) { return SMS_MOD_API_VERSION; }
+	SMS_MOD_EXTERN_C SMS_MOD_EXPORT uint32_t sms_mod_api_version(void) { return SMS_MOD_API_VERSION; } \
+	SMS_MOD_EXTERN_C SMS_MOD_EXPORT uint32_t sms_mod_api_prerelease(void) { return SMS_MOD_API_PRERELEASE; }
 
 #ifdef __cplusplus
 }

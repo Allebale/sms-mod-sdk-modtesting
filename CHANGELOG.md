@@ -2,16 +2,21 @@
 
 A release's tag is the API version (`v1.1.0` is API 1.1). Within a major version the API only grows; see [Compatibility](docs/MODDING.md#compatibility).
 
-## 1.5.0
+Pre-releases (`v1.5.0-beta.1`, `-beta.2`, ...) lead to a release and are listed under it, newest first, until it comes out. What a beta added may still change before the release; see [Pre-releases](docs/MODDING.md#pre-releases).
+
+## 1.5.0 (in beta)
 
 FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a randomizer's unlocks, a challenge's rules).
+
+### 1.5.0-beta.1
 
 - `SMS_EV_PLAYER_NOZZLE` (`SmsEvPlayerNozzle`: `from`, `to`, `animate`, `reason`, `box`): FLUDD is about to switch nozzle (`SMS_NOZZLE_SWITCH`: a nozzle picked up, Yoshi, the game, `player->set_nozzle`), swap with its second nozzle (`SMS_NOZZLE_SWAP`), get the nozzle the file remembers as a stage starts (`SMS_NOZZLE_STAGE_START`), or a nozzle's box is about to be set up (`SMS_NOZZLE_BOX`). `to` may be changed; cancel and the nozzle stays (a box is not in the stage). Only the player's Mario.
 - `player->set_nozzle(nozzle, animate)`, `player->set_fludd(has)`, `player->set_outfit(shirt, sunglasses, helmet)` (each 1, 0, or -1 as it is).
 - `SmsPlayer.current_nozzle`, `.shirt`, `.sunglasses`, `.helmet` (check `size`).
 - In Lua: the `player_nozzle` event, `sms.set_nozzle`, `sms.set_fludd`, `sms.set_outfit`, and `sms.mario()`'s `current_nozzle`, `shirt`, `sunglasses`, `helmet`.
 - The manual's Nozzles: the diving helmet is not a nozzle (it was listed as 7).
-- The lua mod is version 1.5.0.
+- The lua mod is version 1.5.0-beta.1.
+- Pre-releases: `SMS_MOD_API_PRERELEASE` (0 in a release, N in `-beta.N`), the `sms_mod_api_prerelease` export `SMS_MOD_DEFINE` adds, and `SmsApi.prerelease` (the game's). A game warns of a mod built against another beta. `tools/check-version.sh` checks a tag against the SDK; CI releases a beta tag as a GitHub pre-release.
 
 ## 1.4.0
 
