@@ -42,7 +42,7 @@
 #define SMS_MOD_API_MAJOR 1
 #define SMS_MOD_API_MINOR 5
 /* 0 in a release; N in the pre-release vMAJOR.MINOR.0-beta.N (API 1.5) */
-#define SMS_MOD_API_PRERELEASE 1
+#define SMS_MOD_API_PRERELEASE 2
 #define SMS_MOD_API_VERSION ((uint32_t)SMS_MOD_API_MAJOR << 16 | SMS_MOD_API_MINOR)
 
 #if defined(_WIN32)
@@ -199,6 +199,106 @@ typedef enum SmsEventType {
 	   Only the player's Mario. Cancellable: the nozzle stays as it is (a
 	   box is left out of the stage). */
 	SMS_EV_PLAYER_NOZZLE = 31,
+
+	/* API 1.5 beta 2: events for every kind of mod. Those of Mario are only
+	   for the player's Mario (not Shadow Mario); actors are the stage's
+	   enemies, items and other objects (SmsObject, with their actor type). */
+
+	/* Mario's status (his action) changed: `from` the one he had, `to` the
+	   one he has now (after the game's own rewrites), `arg` its argument;
+	   `forced` 0. SMS_EV_PLAYER_STATUS asks; this tells. SmsEvPlayerStatus. */
+	SMS_EV_PLAYER_STATUS_CHANGED = 32,
+	/* Mario jumped: a jump, second or triple jump, back flip, side flip,
+	   long jump, wall jump, spin jump, dive, a stomp's bounce, the rocket
+	   nozzle... SmsEvPlayerJump. */
+	SMS_EV_PLAYER_JUMP = 33,
+	/* Mario landed on the ground after being in the air, from how high.
+	   SmsEvPlayerLand. */
+	SMS_EV_PLAYER_LAND = 34,
+	/* Mario is about to gain health (a coin, a heart, a 1-up, a Shine) or,
+	   under water, air. `amount` may be changed. Cancellable: cancel and he
+	   gains nothing. SmsEvDamage (its `source` NULL). */
+	SMS_EV_PLAYER_HEAL = 35,
+	/* Mario lost his life (before SMS_EV_LIFE_LOST or SMS_EV_GAME_OVER, as
+	   he falls), and why. SmsEvPlayerDeath. */
+	SMS_EV_PLAYER_DEATH = 36,
+	/* Mario is about to be put at the stage's start, as it loads: where and
+	   facing which way may be changed. SmsEvPlayerSpawn. */
+	SMS_EV_PLAYER_SPAWN = 37,
+	/* Something touched or hit Mario: an enemy's attack, fire, a coin or an
+	   item taken, a Blooper ridden. Cancellable: cancel and he ignores it
+	   (no damage, no pickup). SmsEvHit: `object` Mario, `sender` the other. */
+	SMS_EV_PLAYER_HIT = 38,
+	/* Mario got on or off Yoshi or a Blooper. SmsEvPlayerMount. */
+	SMS_EV_PLAYER_MOUNT = 39,
+	/* Mario went into the water or came out of it. SmsEvPlayerWater. */
+	SMS_EV_PLAYER_WATER = 40,
+	/* Yoshi hatched from his egg (the fruit it was given). SmsEvYoshi. */
+	SMS_EV_YOSHI_HATCH = 41,
+	/* Yoshi ate a fruit (his colour may change). SmsEvYoshi. */
+	SMS_EV_YOSHI_EAT = 42,
+	/* An actor came into the stage while it is played: an enemy placed (or
+	   placed again) by its generator, an item made to appear (a coin out of
+	   a box, a 1-up). Not the actors the stage loads with. SmsEvActor. */
+	SMS_EV_ACTOR_SPAWN = 43,
+	/* The player hit an enemy and it lost health (sprayed, stomped,
+	   ground-pounded, punched). SmsEvActorDamage. */
+	SMS_EV_ACTOR_DAMAGE = 44,
+	/* An enemy was defeated (as it leaves its coins), one of the bosses
+	   docs/MODDING.md names beaten, or an enemy killed by the stage (a pit:
+	   `forced` 1). SmsEvActor: `other` the last of the player's hits on it,
+	   or NULL. */
+	SMS_EV_ACTOR_DEATH = 45,
+	/* A Shine appears during play: an event's, a boss's, the red coins'.
+	   SmsEvShineActor. */
+	SMS_EV_SHINE_APPEAR = 46,
+	/* Mario took a Shine: every time, a Shine the file has too (before its
+	   Shine Get; SMS_EV_SHINE_COLLECTED comes when a new one is counted).
+	   SmsEvShineActor. */
+	SMS_EV_SHINE_GET = 47,
+	/* A save-file flag (game->flag_get's) is about to change: coins, lives,
+	   Shines, blue coins, red coins, events... `value` may be changed.
+	   Cancellable: cancel and it stays. Not when a file is loaded or the
+	   stage's flags reset. SmsEvFlag. */
+	SMS_EV_FLAG_CHANGED = 48,
+	/* A sound effect is about to play (every one the game plays: Mario's
+	   voice, footsteps, enemies, menus). `id` may be changed. Cancellable:
+	   cancel and it is not played. Many a frame: subscribe only when you
+	   need it. SmsEvSound. */
+	SMS_EV_SOUND = 49,
+	/* Music is about to start (`start` 1: `id` may be changed; cancel and
+	   it is not played) or stop (`start` 0). SmsEvMusic. */
+	SMS_EV_MUSIC = 50,
+	/* A talk with an NPC (or a sign) starts, shows a message (`message` may
+	   be changed), or ends. SmsEvTalk. */
+	SMS_EV_TALK = 51,
+	/* The pause menu, the map or a save screen opened (`paused` 1) or closed
+	   (0): the stage stands still meanwhile (no SMS_EV_TICK). SmsEvPause. */
+	SMS_EV_PAUSE = 52,
+	/* The game mode (SmsGameMode) changed: the title, a stage, a movie.
+	   SmsEvMode. */
+	SMS_EV_MODE_CHANGED = 53,
+	/* A camera cutscene (SMS_EV_CUTSCENE's) is over. SmsEvCutsceneEnd. */
+	SMS_EV_CUTSCENE_END = 54,
+	/* The game was saved: the pause menu's save, the save prompt, auto
+	   save. SmsEvGameSaved. */
+	SMS_EV_GAME_SAVED = 55,
+	/* The HUD's timer (a timed event's, the red coins') started, stopped,
+	   or ran out. SmsEvTimer. */
+	SMS_EV_TIMER = 56,
+	/* A stage's event script calls one of the game's functions by name
+	   ("startTimer", "setNextStage", "appearShine"...). Many a frame: the
+	   scripts poll. SmsEvScriptCall. */
+	SMS_EV_SCRIPT_CALL = 57,
+	/* One of the stage's map events is set off: its goop was cleaned and a
+	   building rises, a gate opens. SmsEvObject: the event's object
+	   (game->object_name names it). */
+	SMS_EV_MAP_EVENT = 58,
+	/* The stage is about to ask the player to save (after a Shine, a blue
+	   coin, a nozzle's box, Yoshi). Cancellable: cancel and it does not ask
+	   (save yourself, or not); the stage goes on as after the prompt.
+	   SmsEvSavePrompt. */
+	SMS_EV_SAVE_PROMPT = 59,
 
 	/* core->event_id hands out ids from here for mods' own events. */
 	SMS_EV_CUSTOM_BASE = 0x10000
@@ -378,7 +478,11 @@ typedef struct SmsEvPlayerStatus {
 
 typedef struct SmsEvDamage {
 	int amount;     /* changeable */
-	int underwater; /* air is lost, not health */
+	int underwater; /* air is lost (or gained), not health */
+	/* API 1.5 beta 2 (check ev->size): what hurts him, the enemy or object
+	   that hit him; NULL for the ground's damage (fire, goop, a fall), his
+	   air under water, and SMS_EV_PLAYER_HEAL. */
+	SmsObject source;
 } SmsEvDamage;
 
 /* SmsEvPlayerNozzle.reason (API 1.5) */
@@ -409,6 +513,200 @@ typedef struct SmsEvPlayerNozzle {
 	int reason;    /* SmsNozzleReason */
 	SmsObject box; /* SMS_NOZZLE_BOX: the box; else NULL */
 } SmsEvPlayerNozzle;
+
+/* SmsEvPlayerJump (API 1.5 beta 2) */
+typedef struct SmsEvPlayerJump {
+	uint32_t status;   /* the jump (docs/MODDING.md, Mario statuses): 0x02000880 a jump,
+	                      0x02000881 second, 0x00000882 triple, 0x00000883 back flip... */
+	uint32_t from;     /* the status he jumped from */
+	SmsVec3 position;
+	SmsVec3 velocity;  /* units a tick, as he leaves the ground */
+} SmsEvPlayerJump;
+
+/* SmsEvPlayerLand (API 1.5 beta 2) */
+typedef struct SmsEvPlayerLand {
+	uint32_t status;   /* the status he lands into */
+	uint32_t from;     /* the one he had in the air */
+	float fall;        /* how far he fell from the highest point of the jump or fall */
+	float speed;       /* how fast he was falling, units a tick (positive) */
+	SmsVec3 position;
+} SmsEvPlayerLand;
+
+/* SmsEvPlayerDeath.cause (API 1.5 beta 2) */
+typedef enum SmsDeathCause {
+	SMS_DEATH_OTHER = 0,    /* a stage's script (a timed event failed), the coaster */
+	SMS_DEATH_HEALTH = 1,   /* no health left: an enemy, fire, a hard fall */
+	SMS_DEATH_DROWN = 2,    /* no air left, under water */
+	SMS_DEATH_PIT = 3,      /* a bottomless pit: the stage's floor of death */
+	SMS_DEATH_GOOP = 4,     /* sinking goop, deadly goop */
+	SMS_DEATH_ELECTRIC = 5, /* electric goop */
+	SMS_DEATH_CRASH = 6     /* a Blooper ridden into a wall */
+} SmsDeathCause;
+
+typedef struct SmsEvPlayerDeath {
+	int cause;          /* SmsDeathCause */
+	SmsVec3 position;
+	SmsObject source;   /* SMS_DEATH_HEALTH: what took his last health, when an enemy did; else NULL */
+} SmsEvPlayerDeath;
+
+/* SmsEvPlayerSpawn.kind (API 1.5 beta 2): how the stage brings him in */
+#define SMS_START_WAIT    0 /* standing */
+#define SMS_START_ROLL    1 /* rolling in (out of a pipe, through a painting) */
+#define SMS_START_RETURN  2 /* back from a world */
+#define SMS_START_COASTER 4 /* Pinna Park's coaster (position and yaw are not taken) */
+
+typedef struct SmsEvPlayerSpawn {
+	SmsVec3 position;  /* changeable */
+	float yaw;         /* degrees, as SmsPlayer's; changeable */
+	int has_position;  /* 0: the stage puts him where its scene file does (position is
+	                      that); set 1 with a position to put him somewhere */
+	int kind;          /* SMS_START_* */
+} SmsEvPlayerSpawn;
+
+/* SmsEvPlayerMount.mount (API 1.5 beta 2) */
+#define SMS_MOUNT_YOSHI   0
+#define SMS_MOUNT_BLOOPER 1
+
+typedef struct SmsEvPlayerMount {
+	int mount;         /* SMS_MOUNT_* */
+	int on;            /* 1 got on, 0 got off */
+	SmsObject object;  /* the Blooper as he gets on; NULL for Yoshi (not an object) */
+	int color;         /* Yoshi's colour (SMS_YOSHI_*); a Blooper: 0 red, 1 yellow, 2 green; -1 off */
+} SmsEvPlayerMount;
+
+typedef struct SmsEvPlayerWater {
+	int entered;       /* 1 into the water, 0 out of it */
+	float surface_y;   /* the water's surface */
+	SmsVec3 position;
+} SmsEvPlayerWater;
+
+/* Yoshi's colours (API 1.5 beta 2) */
+#define SMS_YOSHI_GREEN  0
+#define SMS_YOSHI_ORANGE 1
+#define SMS_YOSHI_PURPLE 2
+#define SMS_YOSHI_PINK   3
+
+typedef struct SmsEvYoshi {
+	uint32_t fruit;    /* the fruit's actor type (0x40000390..0x40000395), 0 not known */
+	int color;         /* his colour now, SMS_YOSHI_* */
+	SmsVec3 position;
+} SmsEvYoshi;
+
+/* SMS_EV_ACTOR_SPAWN, SMS_EV_ACTOR_DEATH (API 1.5 beta 2) */
+typedef struct SmsEvActor {
+	SmsObject object;
+	uint32_t actor_type; /* the game's actor type (SMS_ACTOR_* bits) */
+	SmsVec3 position;
+	SmsObject other;     /* SMS_EV_ACTOR_DEATH: the last of the player's hits on it, or NULL */
+	int forced;          /* SMS_EV_ACTOR_DEATH: killed by the stage (a pit), not defeated */
+} SmsEvActor;
+
+/* Actor type bits (SmsEvActor.actor_type, game->object_type) */
+#define SMS_ACTOR_PLAYER 0x80000000u
+#define SMS_ACTOR_OBJECT 0x40000000u /* map objects and NPCs */
+#define SMS_ACTOR_ITEM   0x20000000u /* coins, Shines, fruit, nozzles */
+#define SMS_ACTOR_ENEMY  0x10000000u
+#define SMS_ACTOR_BOSS   0x08000000u
+
+typedef struct SmsEvActorDamage {
+	SmsObject object;    /* the enemy */
+	SmsObject attacker;  /* Mario, or his water */
+	uint32_t actor_type;
+	uint32_t message;    /* the hit (HIT_MESSAGE_*, see docs/MODDING.md) */
+	int health_before;
+	int health;          /* after the hit */
+	int max_health;
+	SmsVec3 position;
+} SmsEvActorDamage;
+
+/* SMS_EV_SHINE_APPEAR, SMS_EV_SHINE_GET (API 1.5 beta 2) */
+typedef struct SmsEvShineActor {
+	SmsObject object;
+	int shine;          /* its number (0..119; Eclipse's own beyond), -1 none */
+	int had;            /* the file has it already */
+	SmsVec3 position;
+} SmsEvShineActor;
+
+typedef struct SmsEvFlag {
+	uint32_t id;       /* the flag (docs/MODDING.md, Flags) */
+	int32_t old;       /* its value now */
+	int32_t value;     /* the value it is about to take; changeable */
+} SmsEvFlag;
+
+typedef struct SmsEvSound {
+	uint32_t id;       /* the game's MSD_SE_* (SMS_SOUND_* are some); changeable */
+	int system;        /* a system sound, played at no place */
+	int has_position;
+	SmsVec3 position;  /* where it plays */
+} SmsEvSound;
+
+typedef struct SmsEvMusic {
+	uint32_t id;       /* the game's MSD_BGM_* (SMS_MUSIC_* are some); changeable when starting */
+	int start;         /* 1 starting, 0 stopping */
+} SmsEvMusic;
+
+/* SmsEvTalk.what (API 1.5 beta 2) */
+#define SMS_TALK_START   0
+#define SMS_TALK_MESSAGE 1
+#define SMS_TALK_END     2
+
+typedef struct SmsEvTalk {
+	int what;          /* SMS_TALK_* */
+	SmsObject npc;     /* the one talked to (a sign is an NPC too) */
+	uint32_t message;  /* SMS_TALK_MESSAGE: the message's id, as the stage's script asks for
+	                      it; changeable (another of the stage's or the game's messages) */
+	int last;          /* SMS_TALK_MESSAGE: the talk ends after this one */
+} SmsEvTalk;
+
+/* SmsEvPause.kind (API 1.5 beta 2) */
+#define SMS_PAUSE_MENU 0 /* the pause menu */
+#define SMS_PAUSE_MAP  1 /* the map (the guide) */
+#define SMS_PAUSE_SAVE 2 /* a save screen */
+
+typedef struct SmsEvPause {
+	int paused;        /* 1 opened, 0 closed (back to play) */
+	int kind;          /* SMS_PAUSE_*: what opened, or what closed */
+} SmsEvPause;
+
+typedef struct SmsEvMode {
+	int from, to;      /* SmsGameMode */
+} SmsEvMode;
+
+typedef struct SmsEvCutsceneEnd {
+	const char* name;  /* the camera's name, as SMS_EV_CUTSCENE gave it ("" an actor's) */
+	SmsObject actor;
+	int forced;        /* cut short (skipped, or the game ended it), not played out */
+} SmsEvCutsceneEnd;
+
+typedef struct SmsEvGameSaved {
+	int file;          /* 0..2 */
+} SmsEvGameSaved;
+
+/* SmsEvTimer.what (API 1.5 beta 2) */
+#define SMS_TIMER_STARTED 0 /* `time` a countdown's, 0 counting up */
+#define SMS_TIMER_STOPPED 1 /* `time` what it shows: a race's time */
+#define SMS_TIMER_OUT     2 /* a countdown reached 0 */
+
+typedef struct SmsEvTimer {
+	int what;          /* SMS_TIMER_STARTED, _STOPPED, _OUT */
+	int time;          /* hundredths of a second */
+} SmsEvTimer;
+
+typedef struct SmsEvScriptCall {
+	const char* name;  /* the game function the script calls */
+	SmsObject owner;   /* the script's object (the stage's event, or an actor) */
+	int argc;
+} SmsEvScriptCall;
+
+/* SmsEvSavePrompt.kind (API 1.5 beta 2) */
+#define SMS_SAVE_BLUE_COIN 1
+#define SMS_SAVE_NOZZLE    3 /* a nozzle's box opened for good (3 or 4) */
+#define SMS_SAVE_YOSHI     5
+#define SMS_SAVE_SHINE     6
+
+typedef struct SmsEvSavePrompt {
+	int kind;          /* SMS_SAVE_* */
+} SmsEvSavePrompt;
 
 typedef struct SmsEvShine {
 	int shine;      /* the Shine's number (0..119) */
@@ -558,6 +856,11 @@ typedef struct SmsGameApi {
 	   little above it), whether that is water, the water's surface over p,
 	   and the roof above. 0 off the stage's map. */
 	int (*ground)(const SmsVec3* p, SmsGround* out);
+	/* API 1.5 beta 2: an object's actor type (SMS_ACTOR_* bits and its
+	   number), 0 when it has none; an enemy's health (and its most, into max,
+	   which may be NULL), -1 when it is not one with health. */
+	uint32_t (*object_type)(SmsObject obj);
+	int (*object_health)(SmsObject obj, int* max);
 } SmsGameApi;
 
 /* The game's cube sets (api->game->in_cube). */

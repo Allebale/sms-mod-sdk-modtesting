@@ -4,7 +4,7 @@ The modding SDK for the [Super Mario Sunshine PC port](https://github.com/chasem
 
 A mod is a folder in the game's `mods/` with a `mod.ini`: a native library (C, C++, Rust, Zig, anything that makes a C shared library) or a Lua script.
 The game loads every mod at start and gives each the same API, so any number run together: their handlers go in order, their panels stack instead of overlapping, they are warned about keys two of them want, and each gets a row and its settings in the game's **Mods menu** (F1).
-Mods can hear of what happens in the game (a stage loads, Mario jumps, a coin is taken, a key is pressed), read and change it (Mario, the save file's flags, the camera, the controllers), draw over it (panels, text, images, markers in the world) and talk to each other.
+Mods can hear of what happens in the game (a stage loads, Mario jumps, lands or is hurt, an enemy is defeated, a coin is taken, a flag or a sound changes, a key is pressed), read and change it (Mario, the save file's flags, the camera, the controllers), draw over it (panels, text, images, markers in the world) and talk to each other.
 
 **Server mods** run a multiplayer game mode from the host alone, a dedicated server as a rule, while players join with the plain game: the server decides when and where, and each player's game shows it with its own models and HUD ([Server mods](docs/MODDING.md#server-mods)).
 

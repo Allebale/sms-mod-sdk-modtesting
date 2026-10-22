@@ -224,6 +224,34 @@ static const struct {
 	{"net_session", SMS_EV_NET_SESSION},
 	{"stage_start", SMS_EV_STAGE_START},
 	{"player_nozzle", SMS_EV_PLAYER_NOZZLE},
+	{"player_status_changed", SMS_EV_PLAYER_STATUS_CHANGED},
+	{"player_jump", SMS_EV_PLAYER_JUMP},
+	{"player_land", SMS_EV_PLAYER_LAND},
+	{"player_heal", SMS_EV_PLAYER_HEAL},
+	{"player_death", SMS_EV_PLAYER_DEATH},
+	{"player_spawn", SMS_EV_PLAYER_SPAWN},
+	{"player_hit", SMS_EV_PLAYER_HIT},
+	{"player_mount", SMS_EV_PLAYER_MOUNT},
+	{"player_water", SMS_EV_PLAYER_WATER},
+	{"yoshi_hatch", SMS_EV_YOSHI_HATCH},
+	{"yoshi_eat", SMS_EV_YOSHI_EAT},
+	{"actor_spawn", SMS_EV_ACTOR_SPAWN},
+	{"actor_damage", SMS_EV_ACTOR_DAMAGE},
+	{"actor_death", SMS_EV_ACTOR_DEATH},
+	{"shine_appear", SMS_EV_SHINE_APPEAR},
+	{"shine_get", SMS_EV_SHINE_GET},
+	{"flag_changed", SMS_EV_FLAG_CHANGED},
+	{"sound", SMS_EV_SOUND},
+	{"music", SMS_EV_MUSIC},
+	{"talk", SMS_EV_TALK},
+	{"pause", SMS_EV_PAUSE},
+	{"mode_changed", SMS_EV_MODE_CHANGED},
+	{"cutscene_end", SMS_EV_CUTSCENE_END},
+	{"game_saved", SMS_EV_GAME_SAVED},
+	{"timer", SMS_EV_TIMER},
+	{"script_call", SMS_EV_SCRIPT_CALL},
+	{"map_event", SMS_EV_MAP_EVENT},
+	{"save_prompt", SMS_EV_SAVE_PROMPT},
 };
 
 static const char* const kLeaves[] = {"other", "way_out", "shine", "exit_area", "life_lost", "game_over", "warp", "file"};
@@ -231,6 +259,27 @@ static const char* leaveName(int r) { return r >= 0 && r <= 7 ? kLeaves[r] : "ot
 
 static const char* const kNozzleReasons[] = {"switch", "swap", "box", "stage_start"};
 static const char* nozzleReasonName(int r) { return r >= 0 && r <= 3 ? kNozzleReasons[r] : "switch"; }
+
+/* API 1.5 beta 2's names */
+static const char* const kDeaths[] = {"other", "health", "drown", "pit", "goop", "electric", "crash"};
+static const char* deathName(int c) { return c >= 0 && c <= 6 ? kDeaths[c] : "other"; }
+static const char* const kStarts[] = {"wait", "roll", "return", "other", "coaster"};
+static const char* startName(int k) { return k >= 0 && k <= 4 ? kStarts[k] : "other"; }
+static const char* const kTalks[] = {"start", "message", "end"};
+static const char* const kPauses[] = {"menu", "map", "save"};
+static const char* const kTimers[] = {"started", "stopped", "out"};
+static const char* pick(const char* const* names, int n, int i) { return i >= 0 && i < n ? names[i] : "other"; }
+static const char* savePromptName(int k)
+{
+	switch (k) {
+	case SMS_SAVE_BLUE_COIN: return "blue_coin";
+	case 3:
+	case 4: return "nozzle";
+	case SMS_SAVE_YOSHI: return "yoshi";
+	case SMS_SAVE_SHINE: return "shine";
+	default: return "other";
+	}
+}
 
 static const char* const kModes[] = {"boot", "title", "menu", "stage", "movie", "other"};
 static const char* modeName(int m) { return m >= 0 && m <= 5 ? kModes[m] : "other"; }
@@ -394,7 +443,8 @@ static void pushEvent(lua_State* L, const SmsEvent* ev)
 		setnum(L, "size", p->size);
 		break;
 	}
-	case SMS_EV_OBJECT_HIT: {
+	case SMS_EV_OBJECT_HIT:
+	case SMS_EV_PLAYER_HIT: {
 		const SmsEvHit* p = (const SmsEvHit*)d;
 		setobj(L, "object", p->object);
 		setobj(L, "sender", p->sender);
@@ -420,12 +470,174 @@ static void pushEvent(lua_State* L, const SmsEvent* ev)
 		setobj(L, "box", p->box);
 		break;
 	}
-	case SMS_EV_PLAYER_DAMAGE: {
+	case SMS_EV_PLAYER_DAMAGE:
+	case SMS_EV_PLAYER_HEAL: {
 		const SmsEvDamage* p = (const SmsEvDamage*)d;
 		setint(L, "amount", p->amount);
 		setbool(L, "underwater", p->underwater);
+		if (ev->size >= offsetof(SmsEvDamage, source) + sizeof p->source)
+			setobj(L, "source", p->source);
 		break;
 	}
+	case SMS_EV_PLAYER_STATUS_CHANGED: {
+		const SmsEvPlayerStatus* p = (const SmsEvPlayerStatus*)d;
+		setint(L, "from", p->from);
+		setint(L, "to", p->to);
+		setint(L, "arg", p->arg);
+		break;
+	}
+	case SMS_EV_PLAYER_JUMP: {
+		const SmsEvPlayerJump* p = (const SmsEvPlayerJump*)d;
+		setint(L, "status", p->status);
+		setint(L, "from", p->from);
+		setvec(L, "position", &p->position);
+		setvec(L, "velocity", &p->velocity);
+		break;
+	}
+	case SMS_EV_PLAYER_LAND: {
+		const SmsEvPlayerLand* p = (const SmsEvPlayerLand*)d;
+		setint(L, "status", p->status);
+		setint(L, "from", p->from);
+		setnum(L, "fall", p->fall);
+		setnum(L, "speed", p->speed);
+		setvec(L, "position", &p->position);
+		break;
+	}
+	case SMS_EV_PLAYER_DEATH: {
+		const SmsEvPlayerDeath* p = (const SmsEvPlayerDeath*)d;
+		setstr(L, "cause", deathName(p->cause));
+		setvec(L, "position", &p->position);
+		setobj(L, "source", p->source);
+		break;
+	}
+	case SMS_EV_PLAYER_SPAWN: {
+		const SmsEvPlayerSpawn* p = (const SmsEvPlayerSpawn*)d;
+		setvec(L, "position", &p->position);
+		setnum(L, "yaw", p->yaw);
+		setbool(L, "has_position", p->has_position);
+		setstr(L, "kind", startName(p->kind));
+		break;
+	}
+	case SMS_EV_PLAYER_MOUNT: {
+		const SmsEvPlayerMount* p = (const SmsEvPlayerMount*)d;
+		setstr(L, "mount", p->mount == SMS_MOUNT_YOSHI ? "yoshi" : "blooper");
+		setbool(L, "on", p->on);
+		setobj(L, "object", p->object);
+		setint(L, "color", p->color);
+		break;
+	}
+	case SMS_EV_PLAYER_WATER: {
+		const SmsEvPlayerWater* p = (const SmsEvPlayerWater*)d;
+		setbool(L, "entered", p->entered);
+		setnum(L, "surface_y", p->surface_y);
+		setvec(L, "position", &p->position);
+		break;
+	}
+	case SMS_EV_YOSHI_HATCH:
+	case SMS_EV_YOSHI_EAT: {
+		const SmsEvYoshi* p = (const SmsEvYoshi*)d;
+		setint(L, "fruit", p->fruit);
+		setint(L, "color", p->color);
+		setvec(L, "position", &p->position);
+		break;
+	}
+	case SMS_EV_ACTOR_SPAWN:
+	case SMS_EV_ACTOR_DEATH: {
+		const SmsEvActor* p = (const SmsEvActor*)d;
+		setobj(L, "object", p->object);
+		setint(L, "actor_type", p->actor_type);
+		setvec(L, "position", &p->position);
+		setobj(L, "other", p->other);
+		setbool(L, "forced", p->forced);
+		break;
+	}
+	case SMS_EV_ACTOR_DAMAGE: {
+		const SmsEvActorDamage* p = (const SmsEvActorDamage*)d;
+		setobj(L, "object", p->object);
+		setobj(L, "attacker", p->attacker);
+		setint(L, "actor_type", p->actor_type);
+		setint(L, "message", p->message);
+		setint(L, "health_before", p->health_before);
+		setint(L, "health", p->health);
+		setint(L, "max_health", p->max_health);
+		setvec(L, "position", &p->position);
+		break;
+	}
+	case SMS_EV_SHINE_APPEAR:
+	case SMS_EV_SHINE_GET: {
+		const SmsEvShineActor* p = (const SmsEvShineActor*)d;
+		setobj(L, "object", p->object);
+		setint(L, "shine", p->shine);
+		setbool(L, "had", p->had);
+		setvec(L, "position", &p->position);
+		break;
+	}
+	case SMS_EV_FLAG_CHANGED: {
+		const SmsEvFlag* p = (const SmsEvFlag*)d;
+		setint(L, "id", p->id);
+		setint(L, "old", p->old);
+		setint(L, "value", p->value);
+		break;
+	}
+	case SMS_EV_SOUND: {
+		const SmsEvSound* p = (const SmsEvSound*)d;
+		setint(L, "id", p->id);
+		setbool(L, "system", p->system);
+		if (p->has_position)
+			setvec(L, "position", &p->position);
+		break;
+	}
+	case SMS_EV_MUSIC: {
+		const SmsEvMusic* p = (const SmsEvMusic*)d;
+		setint(L, "id", p->id);
+		setbool(L, "start", p->start);
+		break;
+	}
+	case SMS_EV_TALK: {
+		const SmsEvTalk* p = (const SmsEvTalk*)d;
+		setstr(L, "what", pick(kTalks, 3, p->what));
+		setobj(L, "npc", p->npc);
+		if (p->what == SMS_TALK_MESSAGE) {
+			setint(L, "message", p->message);
+			setbool(L, "last", p->last);
+		}
+		break;
+	}
+	case SMS_EV_PAUSE: {
+		const SmsEvPause* p = (const SmsEvPause*)d;
+		setbool(L, "paused", p->paused);
+		setstr(L, "kind", pick(kPauses, 3, p->kind));
+		break;
+	}
+	case SMS_EV_MODE_CHANGED: {
+		const SmsEvMode* p = (const SmsEvMode*)d;
+		setstr(L, "from", modeName(p->from));
+		setstr(L, "to", modeName(p->to));
+		break;
+	}
+	case SMS_EV_CUTSCENE_END: {
+		const SmsEvCutsceneEnd* p = (const SmsEvCutsceneEnd*)d;
+		setstr(L, "name", p->name);
+		setobj(L, "actor", p->actor);
+		setbool(L, "forced", p->forced);
+		break;
+	}
+	case SMS_EV_GAME_SAVED: setint(L, "file", ((const SmsEvGameSaved*)d)->file); break;
+	case SMS_EV_TIMER: {
+		const SmsEvTimer* p = (const SmsEvTimer*)d;
+		setstr(L, "what", pick(kTimers, 3, p->what));
+		setint(L, "time", p->time);
+		break;
+	}
+	case SMS_EV_SCRIPT_CALL: {
+		const SmsEvScriptCall* p = (const SmsEvScriptCall*)d;
+		setstr(L, "name", p->name);
+		setobj(L, "owner", p->owner);
+		setint(L, "argc", p->argc);
+		break;
+	}
+	case SMS_EV_MAP_EVENT: setobj(L, "object", ((const SmsEvObject*)d)->object); break;
+	case SMS_EV_SAVE_PROMPT: setstr(L, "kind", savePromptName(((const SmsEvSavePrompt*)d)->kind)); break;
 	case SMS_EV_SHINE_COLLECTED: {
 		const SmsEvShine* p = (const SmsEvShine*)d;
 		setint(L, "shine", p->shine);
@@ -527,9 +739,51 @@ static void readEvent(lua_State* L, int t, SmsEvent* ev, Script* s)
 		lua_pop(L, 1);
 		break;
 	}
-	case SMS_EV_PLAYER_DAMAGE: {
+	case SMS_EV_PLAYER_DAMAGE:
+	case SMS_EV_PLAYER_HEAL: {
 		SmsEvDamage* p = (SmsEvDamage*)d;
 		p->amount      = (int)fieldnum(L, t, "amount", (float)p->amount);
+		break;
+	}
+	case SMS_EV_PLAYER_SPAWN: {
+		SmsEvPlayerSpawn* p = (SmsEvPlayerSpawn*)d;
+		SmsVec3 was         = p->position;
+		lua_getfield(L, t, "position");
+		tovec(L, -1, &p->position);
+		lua_pop(L, 1);
+		p->yaw = fieldnum(L, t, "yaw", p->yaw);
+		lua_getfield(L, t, "has_position");
+		if (lua_isboolean(L, -1))
+			p->has_position = lua_toboolean(L, -1);
+		lua_pop(L, 1);
+		/* a new place is one to put him at */
+		if (p->position.x != was.x || p->position.y != was.y || p->position.z != was.z)
+			p->has_position = 1;
+		break;
+	}
+	case SMS_EV_FLAG_CHANGED: {
+		SmsEvFlag* p = (SmsEvFlag*)d;
+		lua_getfield(L, t, "value");
+		if (lua_isinteger(L, -1))
+			p->value = (int32_t)lua_tointeger(L, -1);
+		lua_pop(L, 1);
+		break;
+	}
+	case SMS_EV_SOUND:
+	case SMS_EV_MUSIC: {
+		uint32_t* id = ev->type == SMS_EV_SOUND ? &((SmsEvSound*)d)->id : &((SmsEvMusic*)d)->id;
+		lua_getfield(L, t, "id");
+		if (lua_isinteger(L, -1))
+			*id = (uint32_t)lua_tointeger(L, -1);
+		lua_pop(L, 1);
+		break;
+	}
+	case SMS_EV_TALK: {
+		SmsEvTalk* p = (SmsEvTalk*)d;
+		lua_getfield(L, t, "message");
+		if (p->what == SMS_TALK_MESSAGE && lua_isinteger(L, -1))
+			p->message = (uint32_t)lua_tointeger(L, -1);
+		lua_pop(L, 1);
 		break;
 	}
 	case SMS_EV_CAMERA: {
@@ -733,6 +987,24 @@ static int l_object_name(lua_State* L)
 {
 	lua_pushstring(L, api->game->object_name(checkobj(L, 1)));
 	return 1;
+}
+static int l_object_type(lua_State* L)
+{
+	SmsObject o = checkobj(L, 1);
+	lua_pushinteger(L, SMS_API_HAS(api->game, object_type) ? api->game->object_type(o) : 0);
+	return 1;
+}
+/* health, most (nil when it has none) */
+static int l_object_health(lua_State* L)
+{
+	SmsObject o = checkobj(L, 1);
+	int max     = 0;
+	const int h = SMS_API_HAS(api->game, object_health) ? api->game->object_health(o, &max) : -1;
+	if (h < 0)
+		return 0;
+	lua_pushinteger(L, h);
+	lua_pushinteger(L, max);
+	return 2;
 }
 static int l_object_position(lua_State* L)
 {
@@ -1793,6 +2065,7 @@ static const luaL_Reg kSms[] = {
 	{"option", l_option}, {"rgb", l_rgb}, {"rgba", l_rgb},
 	{"cube_count", l_cube_count}, {"in_cube", l_in_cube},
 	{"object_count", l_object_count}, {"object_info", l_object_info}, {"ground", l_ground},
+	{"object_type", l_object_type}, {"object_health", l_object_health},
 	{NULL, NULL},
 };
 
