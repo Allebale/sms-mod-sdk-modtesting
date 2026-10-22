@@ -27,6 +27,11 @@
  * size as the game built it, so a mod built against a newer minor version
  * checks a function is there with SMS_API_HAS before calling it. A new major
  * version is an incompatible change; the game refuses mods of another major.
+ *
+ * Pre-releases: v1.5.0-beta.1, -beta.2, ... lead to v1.5.0. A beta has the
+ * next minor version and SMS_MOD_API_PRERELEASE its number; what a beta added
+ * may still change before the release, so a mod built against one is rebuilt
+ * against the release (the game warns of a mod built against another beta).
  */
 #ifndef SMS_MOD_H
 #define SMS_MOD_H
@@ -35,7 +40,9 @@
 #include <stdint.h>
 
 #define SMS_MOD_API_MAJOR 1
-#define SMS_MOD_API_MINOR 4
+#define SMS_MOD_API_MINOR 5
+/* 0 in a release; N in the pre-release vMAJOR.MINOR.0-beta.N (API 1.5) */
+#define SMS_MOD_API_PRERELEASE 1
 #define SMS_MOD_API_VERSION ((uint32_t)SMS_MOD_API_MAJOR << 16 | SMS_MOD_API_MINOR)
 
 #if defined(_WIN32)
@@ -187,6 +194,11 @@ typedef enum SmsEventType {
 	   episode's name, "Go!") and the player has the controls: the first
 	   tick of play. SmsEvStage: the stage, and how it was reached (reason). */
 	SMS_EV_STAGE_START = 30,
+	/* API 1.5. FLUDD is about to change nozzle, or a nozzle's box is about
+	   to be set up as the stage loads (SmsEvPlayerNozzle, SmsNozzleReason).
+	   Only the player's Mario. Cancellable: the nozzle stays as it is (a
+	   box is left out of the stage). */
+	SMS_EV_PLAYER_NOZZLE = 31,
 
 	/* core->event_id hands out ids from here for mods' own events. */
 	SMS_EV_CUSTOM_BASE = 0x10000
@@ -368,6 +380,35 @@ typedef struct SmsEvDamage {
 	int amount;     /* changeable */
 	int underwater; /* air is lost, not health */
 } SmsEvDamage;
+
+/* SmsEvPlayerNozzle.reason (API 1.5) */
+typedef enum SmsNozzleReason {
+	/* A switch: a nozzle picked up, getting on or off Yoshi (his juice is
+	   nozzle 3), the game's own (a cutscene, a stage's script), or
+	   player->set_nozzle. */
+	SMS_NOZZLE_SWITCH = 0,
+	/* The nozzle button: FLUDD swaps to its second nozzle (`to`), or back to
+	   the spray (`to` 0). */
+	SMS_NOZZLE_SWAP = 1,
+	/* A nozzle's box as the stage loads (`to` is its nozzle, `box` the box).
+	   Cancel: the box is not in the stage. */
+	SMS_NOZZLE_BOX = 2,
+	/* A stage that carries FLUDD's nozzle over (Hotel Delfino) gives it the
+	   second nozzle the file remembers (`to`), the spray in front; Bowser's
+	   stage gives the rocket. Cancel: it keeps the ones it has. */
+	SMS_NOZZLE_STAGE_START = 3
+} SmsNozzleReason;
+
+typedef struct SmsEvPlayerNozzle {
+	int from;      /* the nozzle FLUDD has now (docs/MODDING.md, Nozzles); -1 for a box */
+	int to;        /* the nozzle asked for; changeable, except for a box and
+	                  the swap back to the spray (0 spray, 1 rocket,
+	                  2 underwater, 4 hover, 5 turbo; 3, Yoshi's, only to
+	                  get on him). Another number is not taken. */
+	int animate;   /* the change is shown */
+	int reason;    /* SmsNozzleReason */
+	SmsObject box; /* SMS_NOZZLE_BOX: the box; else NULL */
+} SmsEvPlayerNozzle;
 
 typedef struct SmsEvShine {
 	int shine;      /* the Shine's number (0..119) */
@@ -551,6 +592,9 @@ typedef struct SmsPlayer {
 	int on_ground, in_water, on_yoshi;
 	SmsVec3 floor;       /* the ground below him */
 	SmsObject object;    /* the game's TMario */
+	/* API 1.5 (check size) */
+	int current_nozzle;  /* the nozzle FLUDD has out now: 0 spray, 3 on Yoshi */
+	int shirt, sunglasses, helmet; /* what he wears (player->set_outfit) */
 } SmsPlayer;
 
 typedef struct SmsPlayerApi {
@@ -563,6 +607,18 @@ typedef struct SmsPlayerApi {
 	int (*set_water)(int water);
 	/* Ask for a status as the game does (it may refuse). */
 	int (*set_status)(uint32_t status, uint32_t arg);
+	/* API 1.5. FLUDD switches to a nozzle (0 spray, 1 rocket, 2 underwater,
+	   4 hover, 5 turbo), as when one is picked up, `animate` showing it.
+	   SMS_EV_PLAYER_NOZZLE handlers hear of it (SMS_NOZZLE_SWITCH) and may
+	   refuse it. 1 when FLUDD has that nozzle out then; 0 with no Mario, no
+	   FLUDD, on Yoshi, or another number. */
+	int (*set_nozzle)(int nozzle, int animate);
+	/* API 1.5. Mario has FLUDD (1) or not (0), as in the stages without it;
+	   0 when there is no Mario. */
+	int (*set_fludd)(int has);
+	/* API 1.5. What he wears: the aloha shirt, the sunglasses, the diving
+	   helmet; each 1 on, 0 off, -1 as it is. 0 when there is no Mario. */
+	int (*set_outfit)(int shirt, int sunglasses, int helmet);
 } SmsPlayerApi;
 
 typedef struct SmsCamera {
@@ -1071,6 +1127,9 @@ struct SmsApi {
 	const SmsNativeApi* native;
 	const SmsNetApi* net;           /* API 1.2 (SMS_API_HAS(api, net)) */
 	const SmsWorldApi* world;       /* API 1.4 (SMS_API_HAS(api, world)) */
+	/* API 1.5: the game's SMS_MOD_API_PRERELEASE, 0 when it carries a release
+	   of its minor version (check api->size). */
+	uint32_t prerelease;
 };
 
 /* ------------------------------------------------------------------ the mod's side */
@@ -1088,8 +1147,11 @@ typedef int (*SmsModLoadFn)(SmsMod* mod, const SmsApi* api);
 typedef void (*SmsModUnloadFn)(SmsMod* mod);
 typedef uint32_t (*SmsModVersionFn)(void);
 
+/* sms_mod_api_prerelease (API 1.5): the pre-release the mod was built
+   against, 0 for a release; a mod without it was built against a release. */
 #define SMS_MOD_DEFINE() \
-	SMS_MOD_EXTERN_C SMS_MOD_EXPORT uint32_t sms_mod_api_version(void) { return SMS_MOD_API_VERSION; }
+	SMS_MOD_EXTERN_C SMS_MOD_EXPORT uint32_t sms_mod_api_version(void) { return SMS_MOD_API_VERSION; } \
+	SMS_MOD_EXTERN_C SMS_MOD_EXPORT uint32_t sms_mod_api_prerelease(void) { return SMS_MOD_API_PRERELEASE; }
 
 #ifdef __cplusplus
 }

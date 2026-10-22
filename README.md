@@ -61,6 +61,7 @@ cmake --build build
 ```
 
 `-DFETCHCONTENT_SOURCE_DIR_SMS_MOD_SDK=<path>` builds against a checkout of the SDK instead of the tag.
+To try the next version while it is made, name a pre-release's tag (`GIT_TAG v1.5.0-beta.1`) and run the mod in a beta build of the game: [MODDING.md, "Pre-releases"](docs/MODDING.md#pre-releases).
 `sms::mod_sdk` is the headers alone, for a library built some other way.
 
 **Without CMake:** put `include/` on the include path. A mod exports `sms_mod_api_version` (`SMS_MOD_DEFINE()`) and `sms_mod_load`, and its library goes in `mods/<id>/bin/<platform>/` beside the `mod.ini`. The platforms: `linux-x86`, `linux-x86_64`, `linux-arm64`, `windows-x86`, `windows-x86_64`, `macos-x86_64`, `macos-arm64`.

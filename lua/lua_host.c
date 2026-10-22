@@ -223,10 +223,14 @@ static const struct {
 	{"net_player_arrived", SMS_EV_NET_PLAYER_ARRIVED},
 	{"net_session", SMS_EV_NET_SESSION},
 	{"stage_start", SMS_EV_STAGE_START},
+	{"player_nozzle", SMS_EV_PLAYER_NOZZLE},
 };
 
 static const char* const kLeaves[] = {"other", "way_out", "shine", "exit_area", "life_lost", "game_over", "warp", "file"};
 static const char* leaveName(int r) { return r >= 0 && r <= 7 ? kLeaves[r] : "other"; }
+
+static const char* const kNozzleReasons[] = {"switch", "swap", "box", "stage_start"};
+static const char* nozzleReasonName(int r) { return r >= 0 && r <= 3 ? kNozzleReasons[r] : "switch"; }
 
 static const char* const kModes[] = {"boot", "title", "menu", "stage", "movie", "other"};
 static const char* modeName(int m) { return m >= 0 && m <= 5 ? kModes[m] : "other"; }
@@ -407,6 +411,15 @@ static void pushEvent(lua_State* L, const SmsEvent* ev)
 		setbool(L, "forced", p->forced);
 		break;
 	}
+	case SMS_EV_PLAYER_NOZZLE: {
+		const SmsEvPlayerNozzle* p = (const SmsEvPlayerNozzle*)d;
+		setint(L, "from", p->from);
+		setint(L, "to", p->to);
+		setbool(L, "animate", p->animate);
+		setstr(L, "reason", nozzleReasonName(p->reason));
+		setobj(L, "box", p->box);
+		break;
+	}
 	case SMS_EV_PLAYER_DAMAGE: {
 		const SmsEvDamage* p = (const SmsEvDamage*)d;
 		setint(L, "amount", p->amount);
@@ -503,6 +516,14 @@ static void readEvent(lua_State* L, int t, SmsEvent* ev, Script* s)
 		lua_getfield(L, t, "arg");
 		if (lua_isinteger(L, -1))
 			p->arg = (uint32_t)lua_tointeger(L, -1);
+		lua_pop(L, 1);
+		break;
+	}
+	case SMS_EV_PLAYER_NOZZLE: {
+		SmsEvPlayerNozzle* p = (SmsEvPlayerNozzle*)d;
+		lua_getfield(L, t, "to");
+		if (lua_isinteger(L, -1))
+			p->to = (int)lua_tointeger(L, -1);
 		lua_pop(L, 1);
 		break;
 	}
@@ -755,6 +776,12 @@ static int l_mario(lua_State* L)
 	setbool(L, "on_yoshi", p.on_yoshi);
 	setvec(L, "floor", &p.floor);
 	setobj(L, "object", p.object);
+	if (p.size >= offsetof(SmsPlayer, helmet) + sizeof p.helmet) {
+		setint(L, "current_nozzle", p.current_nozzle);
+		setbool(L, "shirt", p.shirt);
+		setbool(L, "sunglasses", p.sunglasses);
+		setbool(L, "helmet", p.helmet);
+	}
 	return 1;
 }
 
@@ -784,6 +811,43 @@ static int l_set_mario(lua_State* L)
 static int l_set_status(lua_State* L)
 {
 	lua_pushboolean(L, api->player->set_status((uint32_t)luaL_checkinteger(L, 1), (uint32_t)luaL_optinteger(L, 2, 0)));
+	return 1;
+}
+
+static int l_set_nozzle(lua_State* L)
+{
+	const int n = (int)luaL_checkinteger(L, 1);
+	const int animate = lua_isnoneornil(L, 2) ? 1 : lua_toboolean(L, 2);
+	lua_pushboolean(L, SMS_API_HAS(api->player, set_nozzle) && api->player->set_nozzle(n, animate));
+	return 1;
+}
+
+static int l_set_fludd(lua_State* L)
+{
+	lua_pushboolean(L, SMS_API_HAS(api->player, set_fludd) && api->player->set_fludd(lua_toboolean(L, 1)));
+	return 1;
+}
+
+/* a piece of the outfit: true on, false off, nil as it is */
+static int outfitArg(lua_State* L, int i) { return lua_isnoneornil(L, i) ? -1 : lua_toboolean(L, i); }
+
+static int l_set_outfit(lua_State* L)
+{
+	int shirt, sunglasses, helmet;
+	if (lua_istable(L, 1)) {
+		lua_getfield(L, 1, "shirt");
+		lua_getfield(L, 1, "sunglasses");
+		lua_getfield(L, 1, "helmet");
+		shirt      = outfitArg(L, -3);
+		sunglasses = outfitArg(L, -2);
+		helmet     = outfitArg(L, -1);
+		lua_pop(L, 3);
+	} else {
+		shirt      = outfitArg(L, 1);
+		sunglasses = outfitArg(L, 2);
+		helmet     = outfitArg(L, 3);
+	}
+	lua_pushboolean(L, SMS_API_HAS(api->player, set_outfit) && api->player->set_outfit(shirt, sunglasses, helmet));
 	return 1;
 }
 
@@ -1721,6 +1785,7 @@ static const luaL_Reg kSms[] = {
 	{"area_name", l_area_name}, {"find_object", l_find_object}, {"object_name", l_object_name},
 	{"object_position", l_object_position}, {"set_object_position", l_set_object_position},
 	{"mario", l_mario}, {"set_mario", l_set_mario}, {"set_status", l_set_status}, {"camera", l_camera},
+	{"set_nozzle", l_set_nozzle}, {"set_fludd", l_set_fludd}, {"set_outfit", l_set_outfit},
 	{"to_canvas", l_to_canvas}, {"play_sound", l_play_sound},
 	{"pad", l_pad}, {"key_down", l_key_down}, {"key_pressed", l_key_pressed}, {"key", l_key},
 	{"key_name", l_key_name}, {"bind_key", l_bind_key}, {"capture", l_capture}, {"captured_by", l_captured_by},

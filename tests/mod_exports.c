@@ -17,7 +17,7 @@
 int main(int argc, char** argv)
 {
 	void* lib;
-	SmsModVersionFn version;
+	SmsModVersionFn version, prerelease;
 	if (argc < 2) {
 		puts("usage: sms_mod_exports <mod library>");
 		return 2;
@@ -36,6 +36,11 @@ int main(int argc, char** argv)
 		printf("FAIL: API %u.%u, not major %d\n", version() >> 16, version() & 0xFFFF, SMS_MOD_API_MAJOR);
 		return 1;
 	}
-	printf("ok: %s, API %u.%u\n", argv[1], version() >> 16, version() & 0xFFFF);
+	*(void**)&prerelease = SYM(lib, "sms_mod_api_prerelease");
+	if (!prerelease || prerelease() != SMS_MOD_API_PRERELEASE) {
+		printf("FAIL: %s does not export sms_mod_api_prerelease %d\n", argv[1], SMS_MOD_API_PRERELEASE);
+		return 1;
+	}
+	printf("ok: %s, API %u.%u, pre-release %u\n", argv[1], version() >> 16, version() & 0xFFFF, prerelease());
 	return 0;
 }

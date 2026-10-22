@@ -29,6 +29,7 @@ Contents:
 [Game reference](#game-reference) ·
 [Debugging](#debugging) ·
 [Compatibility](#compatibility) ·
+[Pre-releases](#pre-releases) ·
 [Design notes](#design-notes) ·
 [Adding to the API](#adding-to-the-api)
 
@@ -263,6 +264,7 @@ Subscribe with `core->subscribe(mod, type, fn, user, priority)`; `fn(mod, ev, us
 | `SMS_EV_SAVE_STATE_REQUEST` | a save state was asked for | `SmsEvSaveState` reason | cancel (set `reason` for the message shown) |
 | `SMS_EV_HIDE_PLAYER_MODEL` | Mario's models are about to be drawn | `SmsEvObject` Mario | consume (leave them out; draw him your own way) |
 | `SMS_EV_PLAYER_STATUS` | Mario's [status](#mario-statuses) (his action) is about to change | `SmsEvPlayerStatus` from, to, arg, forced | change `to`/`arg`; cancel (he stays as he is) |
+| `SMS_EV_PLAYER_NOZZLE` | (1.5) FLUDD is about to change [nozzle](#nozzles), or a nozzle's box is about to be set up as the stage loads | `SmsEvPlayerNozzle` from, to, animate, [reason](#nozzles), box | change `to`; cancel (the nozzle stays; a box is not in the stage) |
 | `SMS_EV_PLAYER_DAMAGE` | Mario is about to lose health, or air under water | `SmsEvDamage` amount, underwater | change `amount`; cancel (he loses nothing) |
 | `SMS_EV_SHINE_COLLECTED` | a Shine's flag was set for the first time on this file | `SmsEvShine` shine number, total | |
 | `SMS_EV_CAMERA` | the game camera placed itself this tick and is about to make its matrices | `SmsEvCamera` position, target, fovy, aspect | change position, target, fovy |
@@ -342,9 +344,15 @@ Objects (`SmsObject`) come from events and `find_object`; they are good until th
 
 ### player
 
-`get(&p)` fills an `SmsPlayer`: `valid` (0 outside stages), position, velocity, forward speed, yaw in degrees and the raw face angles, health and maximum, FLUDD's water and maximum, whether he has FLUDD and its second [nozzle](#nozzles), his [status](#mario-statuses) and how long he has had it, `on_ground`, `in_water`, `on_yoshi`, the ground below him, and the game's object for him.
+`get(&p)` fills an `SmsPlayer`: `valid` (0 outside stages), position, velocity, forward speed, yaw in degrees and the raw face angles, health and maximum, FLUDD's water and maximum, whether he has FLUDD and its second [nozzle](#nozzles), his [status](#mario-statuses) and how long he has had it, `on_ground`, `in_water`, `on_yoshi`, the ground below him, and the game's object for him; and (1.5, check `p.size`) the nozzle FLUDD has out (`current_nozzle`) and what he wears (`shirt`, `sunglasses`, `helmet`).
 
 `set_position`, `set_velocity`, `set_forward_speed`, `set_health` (clamped to 0..max), `set_water` (clamped to 0..max) change him; `set_status(status, arg)` asks for a status as the game does (it may refuse). Each returns 0 when there is no Mario.
+
+API 1.5 (`SMS_API_HAS(api->player, set_outfit)`):
+
+- `set_nozzle(nozzle, animate)` switches FLUDD to a nozzle as the game does (it becomes the second nozzle; 0, the spray, leaves the second one as it is). Pass `animate` 1, as the game does: 0 changes the nozzle without putting the nozzle button's swap in step with it. `SMS_EV_PLAYER_NOZZLE` handlers hear of it as `SMS_NOZZLE_SWITCH` and may refuse it, the calling mod's too. Returns 1 when FLUDD has that nozzle out then; 0 with no FLUDD, on Yoshi, or a number that is not a nozzle (3, Yoshi's, comes only with him).
+- `set_fludd(has)` gives Mario FLUDD or takes it away, as the stages without FLUDD do (no spray, no nozzle, FLUDD not drawn). The nozzles stay as they were for when he has it again.
+- `set_outfit(shirt, sunglasses, helmet)` puts on (1) or takes off (0) the aloha shirt, the sunglasses and the diving helmet, each -1 to leave it as it is. The game still changes them its own way (its events; the helmet in the dive stages).
 
 ### camera
 
@@ -545,7 +553,7 @@ They have Lua's whole standard library, `io` and `os` included, so a script mod 
 ### Events in Lua
 
 `sms.on(name, function(ev) ... end [, priority])` subscribes and returns a handle for `sms.off(handle)`.
-The names are the C events' without `SMS_EV_`, in lower case: `frame`, `tick`, `draw`, `stage_loaded`, `stage_exit_request`, `stage_leaving`, `life_lost`, `game_over`, `coins_reset`, `file_selected`, `item_collected`, `pad_read`, `key`, `cutscene`, `goop_cleaned`, `object_hit`, `save_state_request`, `hide_player_model`, `player_status`, `player_damage`, `shine_collected`, `camera`, `object_move`, `mod_loaded`, `shutdown`, and for multiplayer `net_player_joined`, `net_player_left`, `net_player_arrived`, `net_session` (`{slot, name, character}`; the session's `{area, episode, session}`), and (1.4) `stage_start`. Stage events (`stage_loaded`, `stage_leaving`, `stage_start`, `life_lost`, `file_selected`) carry `{area, episode, reason, shine}`, `reason` a name: `"shine"`, `"exit_area"`, `"life_lost"`, `"game_over"`, `"way_out"`, `"warp"`, `"file"` or `"other"`.
+The names are the C events' without `SMS_EV_`, in lower case: `frame`, `tick`, `draw`, `stage_loaded`, `stage_exit_request`, `stage_leaving`, `life_lost`, `game_over`, `coins_reset`, `file_selected`, `item_collected`, `pad_read`, `key`, `cutscene`, `goop_cleaned`, `object_hit`, `save_state_request`, `hide_player_model`, `player_status`, `player_damage`, `shine_collected`, `camera`, `object_move`, `mod_loaded`, `shutdown`, and for multiplayer `net_player_joined`, `net_player_left`, `net_player_arrived`, `net_session` (`{slot, name, character}`; the session's `{area, episode, session}`), (1.4) `stage_start`, and (1.5) `player_nozzle` (`{from, to, animate, reason, box}`, `reason` `"switch"`, `"swap"`, `"box"` or `"stage_start"`; set `ev.to` to change it). Stage events (`stage_loaded`, `stage_leaving`, `stage_start`, `life_lost`, `file_selected`) carry `{area, episode, reason, shine}`, `reason` a name: `"shine"`, `"exit_area"`, `"life_lost"`, `"game_over"`, `"way_out"`, `"warp"`, `"file"` or `"other"`.
 Any other name is a custom event (`"stage-timer.split"`).
 Priorities: `sms.FIRST`, `sms.EARLY`, `sms.NORMAL` (the default), `sms.LATE`, `sms.MONITOR`.
 
@@ -599,9 +607,10 @@ Objects are light userdata, for `sms.object_name`, `sms.object_position` and `sm
 | `sms.warp(area [, episode])` | leave for a stage |
 | `sms.area_name(area)` | the stage's name |
 | `sms.find_object(name)`, `sms.object_name(o)`, `sms.object_position(o)`, `sms.set_object_position(o, pos)` | objects |
-| `sms.mario()` | `nil` outside stages, or `{position, velocity, forward_speed, yaw, health, max_health, water, max_water, has_fludd, nozzle, status, status_timer, on_ground, in_water, on_yoshi, floor, object}` |
+| `sms.mario()` | `nil` outside stages, or `{position, velocity, forward_speed, yaw, health, max_health, water, max_water, has_fludd, nozzle, status, status_timer, on_ground, in_water, on_yoshi, floor, object}`, and (1.5) `current_nozzle, shirt, sunglasses, helmet` |
 | `sms.set_mario{position =, velocity =, forward_speed =, health =, water =}` | change what is given |
 | `sms.set_status(status [, arg])` | ask for a [status](#mario-statuses) |
+| `sms.set_nozzle(nozzle [, animate])`, `sms.set_fludd(has)`, `sms.set_outfit{shirt =, sunglasses =, helmet =}` | (1.5) FLUDD's [nozzle](#nozzles) (`animate` true unless given), FLUDD or not, what he wears (a piece not given stays as it is; `sms.set_outfit(shirt, sunglasses, helmet)` too, `nil` for as it is); each returns whether it was done |
 | `sms.camera()`, `sms.to_canvas(pos)` | `{position, target, up, fovy, aspect, near, far}`; a world point's `x, y, depth` on the canvas, or nothing behind the camera |
 | `sms.play_sound(id)` | a system sound: `sms.SOUND_COIN`, `SOUND_NEWS`, `SOUND_SHINE`, `SOUND_DAMAGE`, `SOUND_HEAL`, `SOUND_APPEAR`, `SOUND_CURSOR`, `SOUND_DECIDE`, `SOUND_CANCEL`, or any `MSD_SE_SY_*` number |
 | `sms.pad([port])` | `{connected, held, pressed, released, stick_x, stick_y, cstick_x, cstick_y, trigger_l, trigger_r}`; test buttons with `pad.pressed & sms.PAD_A ~= 0` (`PAD_A`, `B`, `X`, `Y`, `Z`, `L`, `R`, `START`, `UP`, `DOWN`, `LEFT`, `RIGHT`) |
@@ -977,7 +986,18 @@ Other flags (events seen, nozzles unlocked, the plaza's state) are in the decomp
 
 ### Nozzles
 
-`SmsPlayer.nozzle`: 0 spray, 1 rocket, 2 underwater, 3 Yoshi, 4 hover, 5 turbo, 7 diving helmet.
+`SmsPlayer.nozzle` (the second nozzle, the one the nozzle button swaps to), `SmsPlayer.current_nozzle` (the one out now) and `SmsEvPlayerNozzle`: 0 spray, 1 rocket, 2 underwater, 3 Yoshi (his juice: FLUDD's nozzle while Mario rides him), 4 hover, 5 turbo. The diving helmet is not a nozzle but what he wears (`SmsPlayer.helmet`, `player->set_outfit`).
+
+`SMS_EV_PLAYER_NOZZLE` (1.5) comes before FLUDD changes nozzle, once for each change the player sees, with `reason`:
+
+| `reason` (Lua) | when | `to` | cancel |
+|---|---|---|---|
+| `SMS_NOZZLE_SWITCH` (`"switch"`) | a nozzle picked up (out of its box, or lying in the stage), getting on Yoshi (`to` 3) or off him (`to` the hover, then the spray), the game's own switches, `player->set_nozzle` | changeable | the nozzle stays (a nozzle picked up is gone all the same) |
+| `SMS_NOZZLE_SWAP` (`"swap"`) | the nozzle button: to the second nozzle, or back to the spray (`to` 0) | changeable to the second nozzle (it becomes the second one), not on the way back | no swap |
+| `SMS_NOZZLE_BOX` (`"box"`) | a nozzle's box is set up as the stage loads (before `SMS_EV_STAGE_LOADED`; `from` -1, `box` the box) | the box's nozzle: 1 rocket, 4 hover, 5 turbo | the box is not in the stage |
+| `SMS_NOZZLE_STAGE_START` (`"stage_start"`) | a stage that carries FLUDD's nozzle over gives it the second nozzle the file remembers, with the spray out (Hotel Delfino, for one; not the plaza nor the worlds' own stages, where FLUDD starts with the hover), or Bowser's stage gives the rocket | changeable | FLUDD keeps the nozzles it has |
+
+`to` takes 0 to 5 (3 only to get on Yoshi, and only 3 then); another number is not taken and the nozzle asked for stays. A mod that keeps a nozzle locked refuses it for `SWITCH`, `SWAP` and `STAGE_START` (or changes `to`), and leaves its boxes out with `BOX`: the hover, FLUDD's second nozzle as most stages start, comes through `SWAP`.
 
 ### Mario statuses
 
@@ -1015,9 +1035,22 @@ Bits: `0x800` airborne, `0x2000` swimming, `0x400` running; `status & 0x1C0` is 
 ## Compatibility
 
 - The game loads a mod whose `sms_mod_api_version()` has the game's **major** version; another major is refused with a message.
-- The current version is **1.4** (1.1 added `core->mod_info` and `core->host_runtime`, for script mods; 1.2 added `api->net`, the `SMS_EV_NET_*` events and `game->in_cube`, for [server mods](#server-mods); 1.3 added players' versions and `client_api`, for [versions](#versions); 1.4 added the stage's objects one at a time, spawning, players, rules and the HUD for server mods, the stage's objects and ground for any mod, and `api->world`, `SmsEvStage.reason` and `SMS_EV_STAGE_START`, for [worlds and episodes](#world)).
+- The current version is **1.4**, and 1.5 is in [beta](#pre-releases) (1.1 added `core->mod_info` and `core->host_runtime`, for script mods; 1.2 added `api->net`, the `SMS_EV_NET_*` events and `game->in_cube`, for [server mods](#server-mods); 1.3 added players' versions and `client_api`, for [versions](#versions); 1.4 added the stage's objects one at a time, spawning, players, rules and the HUD for server mods, the stage's objects and ground for any mod, and `api->world`, `SmsEvStage.reason` and `SMS_EV_STAGE_START`, for [worlds and episodes](#world)).
 - **Minor versions only add**: events, functions at the ends of tables, fields at the ends of structs. A mod built for an older minor runs on a newer game unchanged. A mod built for a newer minor runs on an older game if it checks what it uses with `SMS_API_HAS` and `ev->size` (the game logs a note when a mod is newer than it).
 - Nothing in the API depends on the game's internal layout, so game updates (and the decomp's progress) do not break mods. `api->native` is the exception, by design.
+
+## Pre-releases
+
+The next minor version comes out first as betas: `v1.5.0-beta.1`, `v1.5.0-beta.2`, ..., then `v1.5.0`. They are on the [releases page](https://github.com/chasem-dev/sms-mod-sdk/releases) marked *Pre-release* (with the lua mod's zip), and in the [changelog](../CHANGELOG.md) under the release they lead to. A beta is for trying what is new while it is made: what a beta added may still change (be renamed, take other arguments, or go) in a later beta, and is settled only in the release. What came out in a release never changes.
+
+To build a mod against a beta:
+
+1. **Name the beta's tag** where the SDK comes from: `GIT_TAG v1.5.0-beta.1` in your `FetchContent_Declare` (the templates have it in `CMakeLists.txt`), or `git checkout v1.5.0-beta.1` in a checkout of the SDK, then configure and build as always (CMake fetches the new tag; delete `build/` if it keeps the old one).
+2. **Run it in a game built with that beta.** The PC port's beta builds (SMS Launcher's beta channel, or a source build of the port's `main`) carry the SDK's latest beta once the port moves to it; the game's log says which: `[mods] API 1.5 beta 1: ...`. A release build of the game has the last release (1.4) and does not have what the beta adds; check with `SMS_API_HAS` and `ev->size` as for any newer minor, and the mod still loads there.
+3. **Lua script mods** need the lua mod of the same beta (`sms-lua-mod-1.5.0-beta.1.zip` from the beta's release, unzipped into the game's `mods/`), or, in a source build of the port, `python3 tools/mods/get.py lua` once the port pins it.
+4. **When the release is out, rebuild** against it (`GIT_TAG v1.5.0`) and fix what changed since your beta (the changelog says). Share a mod built against a beta only with others testing the same beta.
+
+`SMS_MOD_API_PRERELEASE` is the beta's number (0 in a release); `SMS_MOD_DEFINE` exports it as `sms_mod_api_prerelease`, and the game's own is `api->prerelease` (1.5; check `api->size`). The game logs a warning when a mod was built against a beta other than the game's (or against a beta of the game's release): `made for mod API 1.5 beta 1 (what a beta adds may change before its release); this game has 1.5 beta 3: rebuild it`. It still loads it.
 
 ## Design notes
 
@@ -1064,8 +1097,8 @@ Lua 5.4 is small (the whole lua mod is about 350 KB stripped), embeds cleanly, s
 The API is this repository. The game's side of it, the runtime, is [`ext/modapi`](https://github.com/chasem-dev/sms-pc-port/blob/main/ext/modapi/README.md) in [sms-pc-port](https://github.com/chasem-dev/sms-pc-port), which has this repository as its `sdk/` submodule.
 A change goes here first, then into the port:
 
-1. **Here:** add the event's id and payload at the end of the lists in `include/sms_mod.h` (a function at the end of its table's struct), bump `SMS_MOD_API_MINOR`, document it in this manual ([Events](#events), [The API](#the-api)), give Lua scripts it in `lua/lua_host.c` if they should have it, note it in `CHANGELOG.md`, and tag the release (`v1.<minor>.0`).
-2. **In the port:** move `sdk/` to that tag. If the game needs a new hook point, add it to `PortExtension` and the `port_ext_*` functions (`src/port_include/port_ext.h`, `ext/core/port_ext.cpp`) and call it from a `zzzzz-ext-*` decomp patch, general enough for other extensions.
+1. **Here:** add the event's id and payload at the end of the lists in `include/sms_mod.h` (a function at the end of its table's struct), document it in this manual ([Events](#events), [The API](#the-api)), give Lua scripts it in `lua/lua_host.c` if they should have it, and note it in `CHANGELOG.md` under the coming release's next beta. The first change after a release starts the next minor's betas (`SMS_MOD_API_MINOR` + 1); tag betas as the work goes and the release when it is done ([RELEASING.md](RELEASING.md)).
+2. **In the port:** move `sdk/` to that tag (a beta's, while the game's beta builds try it). If the game needs a new hook point, add it to `PortExtension` and the `port_ext_*` functions (`src/port_include/port_ext.h`, `ext/core/port_ext.cpp`) and call it from a `zzzzz-ext-*` decomp patch, general enough for other extensions.
 3. In `ext/modapi/game/modapi_game.cpp`, build the payload in the extension's hook and call `modh_dispatch` (skip it when `modh_wants` says nobody listens). If it is cancellable or consumable, add it to `cancellable()` / `consumable()` in `ext/modapi/host/mod_runtime.cpp`; a function goes in its table's initializer there.
 
-Never reorder or remove anything in `sms_mod.h`: that is a new major version, and every mod built before it stops loading.
+Never reorder or remove anything a release has in `sms_mod.h`: that is a new major version, and every mod built before it stops loading. What only betas have may still change; say so in the changelog.
