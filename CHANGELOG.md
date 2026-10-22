@@ -6,7 +6,18 @@ Pre-releases (`v1.5.0-beta.1`, `-beta.2`, ...) lead to a release and are listed 
 
 ## 1.5.0 (in beta)
 
-FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a randomizer's unlocks, a challenge's rules).
+FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a randomizer's unlocks, a challenge's rules); and events for every kind of mod, in the manner of other games' modding APIs: what Mario does, what happens to the stage's actors, and what the game does around them.
+
+### 1.5.0-beta.2
+
+- Events for every kind of mod (docs/MODDING.md, "Events for every kind of mod"), each general enough for many mods:
+  - Mario: `SMS_EV_PLAYER_SPAWN` (where the stage puts him; changeable), `SMS_EV_PLAYER_STATUS_CHANGED` (the status he took), `SMS_EV_PLAYER_JUMP`, `SMS_EV_PLAYER_LAND` (how far he fell), `SMS_EV_PLAYER_HIT` (what touched or hit him; cancellable), `SMS_EV_PLAYER_HEAL` (changeable, cancellable), `SMS_EV_PLAYER_DEATH` (its cause, `SMS_DEATH_*`, and what dealt it), `SMS_EV_PLAYER_MOUNT` (Yoshi, a Blooper), `SMS_EV_PLAYER_WATER`, `SMS_EV_YOSHI_HATCH`, `SMS_EV_YOSHI_EAT`.
+  - Actors: `SMS_EV_ACTOR_SPAWN`, `SMS_EV_ACTOR_DAMAGE` (an enemy's health lost to the player's hit), `SMS_EV_ACTOR_DEATH` (defeated, or killed by the stage), `SMS_EV_SHINE_APPEAR`, `SMS_EV_SHINE_GET` (every Shine taken), `SMS_EV_MAP_EVENT` (goop cleaned sets off a building, a gate).
+  - The game: `SMS_EV_FLAG_CHANGED` (any save-file flag; changeable, cancellable), `SMS_EV_SOUND` and `SMS_EV_MUSIC` (changeable, cancellable), `SMS_EV_TALK` (a talk's start, messages (changeable) and end), `SMS_EV_CUTSCENE_END`, `SMS_EV_PAUSE`, `SMS_EV_MODE_CHANGED`, `SMS_EV_SAVE_PROMPT` (cancellable), `SMS_EV_GAME_SAVED`, `SMS_EV_TIMER`, `SMS_EV_SCRIPT_CALL`.
+- `SmsEvDamage.source` (check `ev->size`): the enemy or object whose hit takes Mario's health; NULL for the ground's damage. `SMS_EV_PLAYER_DAMAGE` no longer comes once Mario has lost his life (the game went on taking health he did not have).
+- `game->object_type(obj)` and `game->object_health(obj, &max)`; `SMS_ACTOR_*` actor type bits.
+- In Lua: the events by name (`player_jump`, `actor_death`, `flag_changed`...), with changeable fields as in C, `ev.source` on `player_damage`, `sms.object_type` and `sms.object_health`.
+- The lua mod is version 1.5.0-beta.2.
 
 ### 1.5.0-beta.1
 

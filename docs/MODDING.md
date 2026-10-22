@@ -265,7 +265,7 @@ Subscribe with `core->subscribe(mod, type, fn, user, priority)`; `fn(mod, ev, us
 | `SMS_EV_HIDE_PLAYER_MODEL` | Mario's models are about to be drawn | `SmsEvObject` Mario | consume (leave them out; draw him your own way) |
 | `SMS_EV_PLAYER_STATUS` | Mario's [status](#mario-statuses) (his action) is about to change | `SmsEvPlayerStatus` from, to, arg, forced | change `to`/`arg`; cancel (he stays as he is) |
 | `SMS_EV_PLAYER_NOZZLE` | (1.5) FLUDD is about to change [nozzle](#nozzles), or a nozzle's box is about to be set up as the stage loads | `SmsEvPlayerNozzle` from, to, animate, [reason](#nozzles), box | change `to`; cancel (the nozzle stays; a box is not in the stage) |
-| `SMS_EV_PLAYER_DAMAGE` | Mario is about to lose health, or air under water | `SmsEvDamage` amount, underwater | change `amount`; cancel (he loses nothing) |
+| `SMS_EV_PLAYER_DAMAGE` | Mario is about to lose health, or air under water | `SmsEvDamage` amount, underwater, (1.5) `source`: the enemy or object that hurt him | change `amount`; cancel (he loses nothing) |
 | `SMS_EV_SHINE_COLLECTED` | a Shine's flag was set for the first time on this file | `SmsEvShine` shine number, total | |
 | `SMS_EV_CAMERA` | the game camera placed itself this tick and is about to make its matrices | `SmsEvCamera` position, target, fovy, aspect | change position, target, fovy |
 | `SMS_EV_OBJECT_MOVE` | an object is about to move this tick (`after` 0), or has (`after` 1) | `SmsEvObjectMove` object, after | (many per tick: subscribe only when needed) |
@@ -275,6 +275,57 @@ Subscribe with `core->subscribe(mod, type, fn, user, priority)`; `fn(mod, ev, us
 | `SMS_EV_NET_PLAYER_ARRIVED` | (host) a player arrived in the stage session it plays | `SmsEvNetPlayer` | bring them up to date ([Server mods](#server-mods)) |
 | `SMS_EV_NET_SESSION` | (host) a new stage session, which everyone follows | `SmsEvNetSession` | set the stage up |
 | `SMS_EV_CUSTOM_BASE` and up | mods' own events, from `core->event_id(name)` | whatever the sender says | cancel |
+
+#### Events for every kind of mod (1.5)
+
+API 1.5 (beta 2) adds events in the manner of other games' modding APIs (an entity damaged, a player joining the world): what Mario does, what happens to the stage's actors, and what the game does around them, each general enough for many mods. Those of Mario are only for the player's Mario, never Shadow Mario. Check `ev->size` against `sizeof` the payload as for any event; a game older than 1.5 beta 2 never sends them.
+
+| Event | When | Payload | Handlers may |
+| --- | --- | --- | --- |
+| **Mario** | | | |
+| `SMS_EV_PLAYER_SPAWN` | Mario is about to be put at the stage's start, as it loads (before `SMS_EV_STAGE_LOADED`) | `SmsEvPlayerSpawn` position, yaw, `has_position`, `kind` (`SMS_START_*`: standing, rolling in, back from a world, the coaster) | change `position` and `yaw`, or set `has_position` 1 to place him in a stage that has no start |
+| `SMS_EV_PLAYER_STATUS_CHANGED` | Mario's [status](#mario-statuses) changed (`SMS_EV_PLAYER_STATUS` asks; this tells what he took) | `SmsEvPlayerStatus` from, to, arg | |
+| `SMS_EV_PLAYER_JUMP` | Mario left the ground: a jump, second or triple jump, back flip, side flip, long jump, wall jump, spin jump, dive, a stomp's bounce, the rocket | `SmsEvPlayerJump` the jump's status, the one before, position, velocity | |
+| `SMS_EV_PLAYER_LAND` | Mario touched the ground after being in the air (not water: `SMS_EV_PLAYER_WATER`) | `SmsEvPlayerLand` status, the one in the air, `fall` (from the highest point), `speed`, position | |
+| `SMS_EV_PLAYER_HIT` | something touched or hit Mario: an enemy's attack (each tick it touches him), fire, a coin or an item, a Blooper ridden | `SmsEvHit` object (Mario), sender, [message](#hit-messages) | cancel (he ignores it: no damage, no pickup) |
+| `SMS_EV_PLAYER_HEAL` | Mario is about to gain health (a coin, a heart, fruit, a 1-up, a Shine, his cap) or, under water, air | `SmsEvDamage` amount, underwater | change `amount`; cancel (he gains nothing) |
+| `SMS_EV_PLAYER_DEATH` | Mario lost his life, as he falls (before `SMS_EV_LIFE_LOST` or `SMS_EV_GAME_OVER`) | `SmsEvPlayerDeath` [cause](#death-causes), position, `source` (what took his last health, when an enemy did) | |
+| `SMS_EV_PLAYER_MOUNT` | Mario got on or off Yoshi or a Blooper | `SmsEvPlayerMount` mount (`SMS_MOUNT_YOSHI`, `_BLOOPER`), on, the Blooper, colour | |
+| `SMS_EV_PLAYER_WATER` | Mario went into the water or came out of it | `SmsEvPlayerWater` entered, the surface's height, position | |
+| `SMS_EV_YOSHI_HATCH` | Yoshi hatched from his egg | `SmsEvYoshi` the fruit that hatched him, his colour (`SMS_YOSHI_*`), position | |
+| `SMS_EV_YOSHI_EAT` | Yoshi ate a fruit (his colour may have changed) | `SmsEvYoshi` | |
+| **Actors** | | | |
+| `SMS_EV_ACTOR_SPAWN` | an actor came into the stage while it is played: an enemy placed (again) by its generator, an item made to appear (a coin out of a defeated enemy, a 1-up); not those the stage loads with | `SmsEvActor` object, actor type (`SMS_ACTOR_*` bits), position | |
+| `SMS_EV_ACTOR_DAMAGE` | the player hit an enemy (sprayed, stomped, ground-pounded, punched) and it lost health | `SmsEvActorDamage` object, attacker (Mario or his water), actor type, [message](#hit-messages), health before and after, most health, position | |
+| `SMS_EV_ACTOR_DEATH` | an enemy was defeated (as it leaves its coins), a boss beaten, or an enemy killed by the stage (`forced`: a pit) | `SmsEvActor` object, actor type, position, `other` (the last of the player's hits on it, or NULL), `forced` | |
+| `SMS_EV_SHINE_APPEAR` | a Shine appears during play: an event's, a boss's, the red coins' | `SmsEvShineActor` object, shine, `had` (the file has it), position | |
+| `SMS_EV_SHINE_GET` | Mario took a Shine: every time, one the file has too (before its Shine Get; `SMS_EV_SHINE_COLLECTED` comes as a new one is counted) | `SmsEvShineActor` | |
+| `SMS_EV_MAP_EVENT` | one of the stage's map events is set off: its goop was cleaned, and a building rises or a gate opens | `SmsEvObject` the event | |
+| **The game** | | | |
+| `SMS_EV_FLAG_CHANGED` | a save-file [flag](#flags) is about to change: coins, lives, Shines, blue and red coins, events (not when a file is loaded or the stage's flags reset at once) | `SmsEvFlag` id, old, value | change `value`; cancel (it stays) |
+| `SMS_EV_SOUND` | a sound effect is about to play: every one, Mario's voice, steps, enemies, menus (many a tick: subscribe only when needed) | `SmsEvSound` id (the game's `MSD_SE_*`), system, position | change `id`; cancel (not played) |
+| `SMS_EV_MUSIC` | music is about to start (`start` 1) or stop (0) | `SmsEvMusic` id (`MSD_BGM_*`), start | starting: change `id`; cancel (not played) |
+| `SMS_EV_TALK` | a talk with an NPC (or a sign) starts, shows a message, or ends | `SmsEvTalk` what (`SMS_TALK_START`, `_MESSAGE`, `_END`), npc, message, last | change `message` (another of the stage's or the game's) |
+| `SMS_EV_CUTSCENE_END` | a camera cutscene (`SMS_EV_CUTSCENE`'s) is over | `SmsEvCutsceneEnd` name, actor, `forced` (cut short) | |
+| `SMS_EV_PAUSE` | the pause menu, the map or a save screen opened or closed: the stage stands still meanwhile | `SmsEvPause` paused, kind (`SMS_PAUSE_MENU`, `_MAP`, `_SAVE`) | |
+| `SMS_EV_MODE_CHANGED` | the [game mode](#game) changed: boot, the title, a stage, a movie | `SmsEvMode` from, to | |
+| `SMS_EV_SAVE_PROMPT` | the stage is about to ask the player to save (after a Shine, a blue coin, a nozzle's box, Yoshi) | `SmsEvSavePrompt` kind (`SMS_SAVE_*`) | cancel (it does not ask; the stage goes on as after it) |
+| `SMS_EV_GAME_SAVED` | the game was saved: the pause menu's save, the prompt, auto save | `SmsEvGameSaved` file | |
+| `SMS_EV_TIMER` | the HUD's timer (a timed event's, the red coins') started, stopped, or a countdown ran out | `SmsEvTimer` what (`SMS_TIMER_STARTED`, `_STOPPED`, `_OUT`), time (hundredths of a second) | |
+| `SMS_EV_SCRIPT_CALL` | a stage's event script calls one of the game's functions (`"startTimer"`, `"setNextStage"`, `"appearShine"`...; many a tick: the scripts poll) | `SmsEvScriptCall` name, owner, argc | |
+
+Notes on them:
+
+- **Before and after.** Events that may be changed or cancelled come before the game acts (`PLAYER_HEAL`, `PLAYER_HIT`, `FLAG_CHANGED`, `SOUND`, `MUSIC`, `SAVE_PROMPT`); the others tell what happened. `SMS_EV_PLAYER_STATUS` asks and may be refused by the game; `SMS_EV_PLAYER_STATUS_CHANGED`, `JUMP` and `LAND` come only for what he did.
+- **Damage and its source.** `SmsEvDamage.source` (check `ev->size`) is the enemy or object whose hit takes Mario's health, so a mod tells an enemy's attack from fire, goop or a hard landing (`source` NULL). `SMS_EV_PLAYER_DEATH`'s `source` is the same for the last health he lost. No damage comes once he has lost his life.
+- **Enemies' health.** `SMS_EV_ACTOR_DAMAGE` comes for the player's hits that take an enemy's health at once. Enemies keep their own rules: a stomp that defeats a small enemy takes it to 1 and then its defeat, a boss loses health on its own weak spots. `game->object_health` reads it at any time. Every defeated small enemy comes through `SMS_EV_ACTOR_DEATH`, and these bosses as they are beaten: Petey Piranha, Gooper Blooper, King Boo, Eely-Mouth and the hot Chain Chomp. A few enemies that explode in their own way (Bob-ombs, Bullet Bills) and the other bosses do not; the Shine a boss leaves comes through `SMS_EV_SHINE_APPEAR`.
+- **The spawn.** `SMS_EV_PLAYER_SPAWN` changes where the stage puts Mario as it would its own start: a stage whose opening turns Mario (a cutscene facing the camera) may still turn him. The Pinna Park coaster (`SMS_START_COASTER`) takes no place.
+- **Flags and sounds are many.** `SMS_EV_FLAG_CHANGED` comes for every flag the game writes one at a time (several as a stage loads); `SMS_EV_SOUND` and `SMS_EV_SCRIPT_CALL` come many times a tick. Filter by `id` or `name` and return quickly.
+- **Object names.** Actors' names are the stage's, often Japanese (Shift-JIS); their actor type is the way to tell them apart: `SMS_ACTOR_ENEMY`, `SMS_ACTOR_BOSS`, `SMS_ACTOR_ITEM` (coins 0x2000000E, Shines 0x20000013), `SMS_ACTOR_OBJECT`, and `game->object_type`.
+
+#### Death causes
+
+`SmsEvPlayerDeath.cause` (Lua `ev.cause`): `SMS_DEATH_HEALTH` (`"health"`: no health left, from an enemy, fire, a hard fall, or too long off the map), `SMS_DEATH_DROWN` (`"drown"`), `SMS_DEATH_PIT` (`"pit"`: a bottomless pit's floor of death), `SMS_DEATH_GOOP` (`"goop"`: sinking or deadly goop), `SMS_DEATH_ELECTRIC` (`"electric"`), `SMS_DEATH_CRASH` (`"crash"`: a Blooper into a wall), `SMS_DEATH_OTHER` (`"other"`: a stage's script, a timed event failed, the coaster).
 
 Notes:
 
@@ -339,6 +390,8 @@ Structs a mod passes in for the game to fill (`SmsGameState`, `SmsPlayer`, `SmsC
 | `area_name(area)` | the stage's display name in the game's language ("DELFINO PLAZA"), or "" |
 | `object_count(lo, hi, kind)`, `object_info(lo, hi, kind, index, &info)` | (1.4) the stage's objects of actor types `lo` to `hi` and of a kind (`"WoodBlockCone"`; `"@7"` the copy `SMS_CMD_SPAWN` made with id 7; `""` any), picked as [server commands](#one-object) pick them: how many, and the `index`th one's actor type, kind, position, rotation, scale, whether it is in the stage (`alive`), hidden by a command, or a copy (its id). On a host, this is the copy of the stage its server mods judge by |
 | `ground(&p, &g)` | (1.4) the ground at a point, as Mario finds it: the floor below (from a little above `p`), its collision type, whether it is water's surface, the water's surface over the point (`has_water`, `water_y`) and the roof above; 0 off the stage's map |
+| `object_type(obj)` | (1.5) an object's actor type (`SMS_ACTOR_*` bits and its number), 0 when it has none |
+| `object_health(obj, &max)` | (1.5) an enemy's health now, and its most (`max` may be NULL); -1 when it is not one with health |
 
 Objects (`SmsObject`) come from events and `find_object`; they are good until the stage changes. Do not keep them across `SMS_EV_STAGE_LEAVING`.
 
@@ -553,7 +606,7 @@ They have Lua's whole standard library, `io` and `os` included, so a script mod 
 ### Events in Lua
 
 `sms.on(name, function(ev) ... end [, priority])` subscribes and returns a handle for `sms.off(handle)`.
-The names are the C events' without `SMS_EV_`, in lower case: `frame`, `tick`, `draw`, `stage_loaded`, `stage_exit_request`, `stage_leaving`, `life_lost`, `game_over`, `coins_reset`, `file_selected`, `item_collected`, `pad_read`, `key`, `cutscene`, `goop_cleaned`, `object_hit`, `save_state_request`, `hide_player_model`, `player_status`, `player_damage`, `shine_collected`, `camera`, `object_move`, `mod_loaded`, `shutdown`, and for multiplayer `net_player_joined`, `net_player_left`, `net_player_arrived`, `net_session` (`{slot, name, character}`; the session's `{area, episode, session}`), (1.4) `stage_start`, and (1.5) `player_nozzle` (`{from, to, animate, reason, box}`, `reason` `"switch"`, `"swap"`, `"box"` or `"stage_start"`; set `ev.to` to change it). Stage events (`stage_loaded`, `stage_leaving`, `stage_start`, `life_lost`, `file_selected`) carry `{area, episode, reason, shine}`, `reason` a name: `"shine"`, `"exit_area"`, `"life_lost"`, `"game_over"`, `"way_out"`, `"warp"`, `"file"` or `"other"`.
+The names are the C events' without `SMS_EV_`, in lower case: `frame`, `tick`, `draw`, `stage_loaded`, `stage_exit_request`, `stage_leaving`, `life_lost`, `game_over`, `coins_reset`, `file_selected`, `item_collected`, `pad_read`, `key`, `cutscene`, `goop_cleaned`, `object_hit`, `save_state_request`, `hide_player_model`, `player_status`, `player_damage`, `shine_collected`, `camera`, `object_move`, `mod_loaded`, `shutdown`, and for multiplayer `net_player_joined`, `net_player_left`, `net_player_arrived`, `net_session` (`{slot, name, character}`; the session's `{area, episode, session}`), (1.4) `stage_start`, and (1.5) `player_nozzle` (`{from, to, animate, reason, box}`, `reason` `"switch"`, `"swap"`, `"box"` or `"stage_start"`; set `ev.to` to change it), and (1.5 beta 2) `player_spawn`, `player_status_changed`, `player_jump`, `player_land`, `player_hit`, `player_heal`, `player_death`, `player_mount`, `player_water`, `yoshi_hatch`, `yoshi_eat`, `actor_spawn`, `actor_damage`, `actor_death`, `shine_appear`, `shine_get`, `map_event`, `flag_changed`, `sound`, `music`, `talk`, `cutscene_end`, `pause`, `mode_changed`, `save_prompt`, `game_saved`, `timer`, `script_call` (fields below). Stage events (`stage_loaded`, `stage_leaving`, `stage_start`, `life_lost`, `file_selected`) carry `{area, episode, reason, shine}`, `reason` a name: `"shine"`, `"exit_area"`, `"life_lost"`, `"game_over"`, `"way_out"`, `"warp"`, `"file"` or `"other"`.
 Any other name is a custom event (`"stage-timer.split"`).
 Priorities: `sms.FIRST`, `sms.EARLY`, `sms.NORMAL` (the default), `sms.LATE`, `sms.MONITOR`.
 
@@ -583,6 +636,31 @@ The handler gets a table: `ev.type` (the name), `ev.cancelled` and `ev.cancelled
 | `camera` | **`position`**, **`target`**, **`fovy`**, `aspect` |
 | `object_move` | `object`, `after` |
 | `mod_loaded` | `id`, `name`, `version` |
+| `player_spawn` | **`position`**, **`yaw`**, **`has_position`** (a new `position` sets it), `kind` (`"wait"`, `"roll"`, `"return"`, `"coaster"`) |
+| `player_status_changed` | `from`, `to`, `arg` |
+| `player_jump` | `status`, `from`, `position`, `velocity` |
+| `player_land` | `status`, `from`, `fall`, `speed`, `position` |
+| `player_hit` | `object`, `sender`, `message` |
+| `player_damage` (1.5), `player_heal` | **`amount`**, `underwater`, `source` |
+| `player_death` | `cause` (`"health"`, `"drown"`, `"pit"`, `"goop"`, `"electric"`, `"crash"`, `"other"`), `position`, `source` |
+| `player_mount` | `mount` (`"yoshi"`, `"blooper"`), `on`, `object`, `color` |
+| `player_water` | `entered`, `surface_y`, `position` |
+| `yoshi_hatch`, `yoshi_eat` | `fruit`, `color`, `position` |
+| `actor_spawn`, `actor_death` | `object`, `actor_type`, `position`, `other`, `forced` |
+| `actor_damage` | `object`, `attacker`, `actor_type`, `message`, `health_before`, `health`, `max_health`, `position` |
+| `shine_appear`, `shine_get` | `object`, `shine`, `had`, `position` |
+| `map_event` | `object` |
+| `flag_changed` | `id`, `old`, **`value`** |
+| `sound` | **`id`**, `system`, `position` (when it has one) |
+| `music` | **`id`** (when starting), `start` |
+| `talk` | `what` (`"start"`, `"message"`, `"end"`), `npc`, and for a message **`message`**, `last` |
+| `cutscene_end` | `name`, `actor`, `forced` |
+| `pause` | `paused`, `kind` (`"menu"`, `"map"`, `"save"`) |
+| `mode_changed` | `from`, `to` (as `mode`) |
+| `save_prompt` | `kind` (`"shine"`, `"blue_coin"`, `"nozzle"`, `"yoshi"`) |
+| `game_saved` | `file` |
+| `timer` | `what` (`"started"`, `"stopped"`, `"out"`), `time` |
+| `script_call` | `name`, `owner`, `argc` |
 | a custom event | `data`: the payload's bytes as a string |
 
 `mode` is `"boot"`, `"title"`, `"menu"`, `"stage"`, `"movie"` or `"other"`.
@@ -623,6 +701,7 @@ Objects are light userdata, for `sms.object_name`, `sms.object_position` and `sm
 | `sms.option{key, label, type, default, min, max, step, choices, on_change}` | a setting in the Mods menu; `type` is `"bool"`, `"int"`, `"float"`, `"choice"` (with `choices = {"a", "b"}`) or `"action"`; `on_change(key)` after each change |
 | `sms.rgb(r, g, b)`, `sms.rgba(r, g, b, a)` | colours (or write `0xRRGGBBAA`) |
 | `sms.object_count(from, to, kind)`, `sms.object_info(from, to, kind, index)`, `sms.ground(pos)` | (1.4) the stage's objects (a table: `type`, `kind`, `position`, `rotation`, `scale`, `alive`, `hidden`, `spawned`), and the ground at a point (`floor`, `floor_type`, `water`, `water_y`, `roof`) |
+| `sms.object_type(o)`, `sms.object_health(o)` | (1.5) an object's actor type; an enemy's health and its most (`local hp, max = sms.object_health(o)`; nothing when it has none) |
 | `sms.world.kind(area)`, `sms.world.of(area)` | (1.4) what an area is (`"airstrip"`, `"plaza"`, `"world"`, `"world_part"`, `"secret"`, `"final"`, `"title"`, `"none"`); its world, or `nil` ([world](#world)) |
 | `sms.world.episodes(area)`, `sms.world.episode_shine(area, ep)`, `sms.world.episode_name(area, ep)`, `sms.world.next_episode(area)`, `sms.world.shine_episode(shine)` | its world's episodes: how many; an episode's Shine and name (`nil`: none); the one the episode select offers; a Shine's episode and world (`nil`: not an episode's) |
 | `sms.world.has_cutscene(name)`, `sms.world.play_cutscene(name [, focus [, frames]])`, `sms.world.cutscene_playing()` | the stage's camera cutscenes |
@@ -1035,7 +1114,7 @@ Bits: `0x800` airborne, `0x2000` swimming, `0x400` running; `status & 0x1C0` is 
 ## Compatibility
 
 - The game loads a mod whose `sms_mod_api_version()` has the game's **major** version; another major is refused with a message.
-- The current version is **1.4**, and 1.5 is in [beta](#pre-releases) (1.1 added `core->mod_info` and `core->host_runtime`, for script mods; 1.2 added `api->net`, the `SMS_EV_NET_*` events and `game->in_cube`, for [server mods](#server-mods); 1.3 added players' versions and `client_api`, for [versions](#versions); 1.4 added the stage's objects one at a time, spawning, players, rules and the HUD for server mods, the stage's objects and ground for any mod, and `api->world`, `SmsEvStage.reason` and `SMS_EV_STAGE_START`, for [worlds and episodes](#world)).
+- The current version is **1.4**, and 1.5 is in [beta](#pre-releases) (1.1 added `core->mod_info` and `core->host_runtime`, for script mods; 1.2 added `api->net`, the `SMS_EV_NET_*` events and `game->in_cube`, for [server mods](#server-mods); 1.3 added players' versions and `client_api`, for [versions](#versions); 1.4 added the stage's objects one at a time, spawning, players, rules and the HUD for server mods, the stage's objects and ground for any mod, and `api->world`, `SmsEvStage.reason` and `SMS_EV_STAGE_START`, for [worlds and episodes](#world); 1.5 adds FLUDD's nozzles and Mario's outfit, and [events for every kind of mod](#events-for-every-kind-of-mod-15)).
 - **Minor versions only add**: events, functions at the ends of tables, fields at the ends of structs. A mod built for an older minor runs on a newer game unchanged. A mod built for a newer minor runs on an older game if it checks what it uses with `SMS_API_HAS` and `ev->size` (the game logs a note when a mod is newer than it).
 - Nothing in the API depends on the game's internal layout, so game updates (and the decomp's progress) do not break mods. `api->native` is the exception, by design.
 
@@ -1072,14 +1151,14 @@ New hook points go into `port_ext.h` once and serve both built-in extensions and
 | --- | --- | --- |
 | HUDs, overlays, information | `draw`, `hud_slot`, `camera->world_to_canvas`, `player`, `game` | the game's own font; textures from the game's archives |
 | Markers in the world | `world_line/box/ring/text` (over the scene) | drawing inside the scene, hidden by walls (a GX layer in the game's frame) |
-| New moves, movement tweaks | `SMS_EV_TICK` + `player->set_*`, `SMS_EV_PLAYER_STATUS` | per-status hooks (a status's code each tick), Mario's parameters |
-| Rules (lives, damage, coins, exits) | `SMS_EV_PLAYER_DAMAGE`, `GAME_OVER`, `COINS_RESET`, `STAGE_EXIT_REQUEST`, `STAGE_LEAVING`, flags | timers, the pause menu, Shine conditions |
+| New moves, movement tweaks | `SMS_EV_TICK` + `player->set_*`, `SMS_EV_PLAYER_STATUS`, `PLAYER_STATUS_CHANGED`, `PLAYER_JUMP`, `PLAYER_LAND`, `PLAYER_SPAWN` | per-status hooks (a status's code each tick), Mario's parameters |
+| Rules (lives, damage, coins, exits) | `SMS_EV_PLAYER_DAMAGE` (and its source), `PLAYER_HEAL`, `PLAYER_HIT`, `PLAYER_DEATH`, `GAME_OVER`, `COINS_RESET`, `STAGE_EXIT_REQUEST`, `STAGE_LEAVING`, `FLAG_CHANGED`, `SAVE_PROMPT`; `TIMER`, `PAUSE` | the pause menu's own entries, Shine conditions |
 | Camera mods | `SMS_EV_CAMERA` (position, target, field of view) | camera modes, roll |
 | Input remapping, scripted play, TAS tools | `SMS_EV_PAD_READ`, `SMS_EV_KEY`, `capture` | mouse, more controllers |
-| Objects and enemies | `SMS_EV_OBJECT_HIT`, `SMS_EV_OBJECT_MOVE`, `find_object`, positions | spawning the game's actors, an object list with kinds, per-object hooks |
+| Objects and enemies | `SMS_EV_OBJECT_HIT`, `OBJECT_MOVE`, `ACTOR_SPAWN`, `ACTOR_DAMAGE`, `ACTOR_DEATH`, `SHINE_APPEAR`, `SHINE_GET`, `MAP_EVENT`; `find_object`, `object_info`, `object_type`, `object_health`, positions | spawning the game's actors for any mod, per-object hooks, enemies' own attacks on each other |
 | New content | files in `mods/<name>/files/` (game file mods) | a native mod switching on its own `files/`; new stages |
-| Sound | `audio->play_system_sound` | sounds placed in the world, a mod's own WAV/OGG, music |
-| Messages and text | | the game's talk boxes and messages |
+| Sound | `audio->play_system_sound`; `SMS_EV_SOUND` and `SMS_EV_MUSIC` change or silence the game's | sounds placed in the world for any mod, a mod's own WAV/OGG |
+| Messages and text | `SMS_EV_TALK` (another message shown), `SMS_EV_SCRIPT_CALL` | the game's talk boxes with a mod's own text |
 | Saving a mod's progress | `config`, `core->data_dir` | per-save-file data; save-state events |
 | Multiplayer game modes | [server mods](#server-mods): `api->net`'s players and commands, dedicated servers | spawning actors and text in players' worlds; players' buttons; companion mods (`side = both`); the session comparing `gameplay` mods |
 | Scripting | Lua script mods (the `lua` mod), `core->host_runtime` for other languages | services for scripts; a sandboxed mode for script mods |
