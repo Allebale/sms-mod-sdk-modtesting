@@ -107,7 +107,7 @@ The game never builds this crate itself; this outline has not been run against a
    include(FetchContent)
    FetchContent_Declare(sms_mod_sdk
      GIT_REPOSITORY https://github.com/chasem-dev/sms-mod-sdk.git
-     GIT_TAG v1.4.0)
+     GIT_TAG v1.5.0)
    FetchContent_MakeAvailable(sms_mod_sdk)
    sms_add_mod(mod src/my_mod.c)
    ```
@@ -263,6 +263,7 @@ Subscribe with `core->subscribe(mod, type, fn, user, priority)`; `fn(mod, ev, us
 | `SMS_EV_SAVE_STATE_REQUEST` | a save state was asked for | `SmsEvSaveState` reason | cancel (set `reason` for the message shown) |
 | `SMS_EV_HIDE_PLAYER_MODEL` | Mario's models are about to be drawn | `SmsEvObject` Mario | consume (leave them out; draw him your own way) |
 | `SMS_EV_PLAYER_STATUS` | Mario's [status](#mario-statuses) (his action) is about to change | `SmsEvPlayerStatus` from, to, arg, forced | change `to`/`arg`; cancel (he stays as he is) |
+| `SMS_EV_PLAYER_NOZZLE` | (1.5) FLUDD is about to change [nozzle](#nozzles), or a nozzle's box is about to be set up as the stage loads | `SmsEvPlayerNozzle` from, to, animate, [reason](#nozzles), box | change `to`; cancel (the nozzle stays; a box is not in the stage) |
 | `SMS_EV_PLAYER_DAMAGE` | Mario is about to lose health, or air under water | `SmsEvDamage` amount, underwater | change `amount`; cancel (he loses nothing) |
 | `SMS_EV_SHINE_COLLECTED` | a Shine's flag was set for the first time on this file | `SmsEvShine` shine number, total | |
 | `SMS_EV_CAMERA` | the game camera placed itself this tick and is about to make its matrices | `SmsEvCamera` position, target, fovy, aspect | change position, target, fovy |
@@ -342,9 +343,15 @@ Objects (`SmsObject`) come from events and `find_object`; they are good until th
 
 ### player
 
-`get(&p)` fills an `SmsPlayer`: `valid` (0 outside stages), position, velocity, forward speed, yaw in degrees and the raw face angles, health and maximum, FLUDD's water and maximum, whether he has FLUDD and its second [nozzle](#nozzles), his [status](#mario-statuses) and how long he has had it, `on_ground`, `in_water`, `on_yoshi`, the ground below him, and the game's object for him.
+`get(&p)` fills an `SmsPlayer`: `valid` (0 outside stages), position, velocity, forward speed, yaw in degrees and the raw face angles, health and maximum, FLUDD's water and maximum, whether he has FLUDD and its second [nozzle](#nozzles), his [status](#mario-statuses) and how long he has had it, `on_ground`, `in_water`, `on_yoshi`, the ground below him, and the game's object for him; and (1.5, check `p.size`) the nozzle FLUDD has out (`current_nozzle`) and what he wears (`shirt`, `sunglasses`, `helmet`).
 
 `set_position`, `set_velocity`, `set_forward_speed`, `set_health` (clamped to 0..max), `set_water` (clamped to 0..max) change him; `set_status(status, arg)` asks for a status as the game does (it may refuse). Each returns 0 when there is no Mario.
+
+API 1.5 (`SMS_API_HAS(api->player, set_outfit)`):
+
+- `set_nozzle(nozzle, animate)` switches FLUDD to a nozzle as the game does (it becomes the second nozzle; 0, the spray, leaves the second one as it is). Pass `animate` 1, as the game does: 0 changes the nozzle without putting the nozzle button's swap in step with it. `SMS_EV_PLAYER_NOZZLE` handlers hear of it as `SMS_NOZZLE_SWITCH` and may refuse it, the calling mod's too. Returns 1 when FLUDD has that nozzle out then; 0 with no FLUDD, on Yoshi, or a number that is not a nozzle (3, Yoshi's, comes only with him).
+- `set_fludd(has)` gives Mario FLUDD or takes it away, as the stages without FLUDD do (no spray, no nozzle, FLUDD not drawn). The nozzles stay as they were for when he has it again.
+- `set_outfit(shirt, sunglasses, helmet)` puts on (1) or takes off (0) the aloha shirt, the sunglasses and the diving helmet, each -1 to leave it as it is. The game still changes them its own way (its events; the helmet in the dive stages).
 
 ### camera
 
@@ -545,7 +552,7 @@ They have Lua's whole standard library, `io` and `os` included, so a script mod 
 ### Events in Lua
 
 `sms.on(name, function(ev) ... end [, priority])` subscribes and returns a handle for `sms.off(handle)`.
-The names are the C events' without `SMS_EV_`, in lower case: `frame`, `tick`, `draw`, `stage_loaded`, `stage_exit_request`, `stage_leaving`, `life_lost`, `game_over`, `coins_reset`, `file_selected`, `item_collected`, `pad_read`, `key`, `cutscene`, `goop_cleaned`, `object_hit`, `save_state_request`, `hide_player_model`, `player_status`, `player_damage`, `shine_collected`, `camera`, `object_move`, `mod_loaded`, `shutdown`, and for multiplayer `net_player_joined`, `net_player_left`, `net_player_arrived`, `net_session` (`{slot, name, character}`; the session's `{area, episode, session}`), and (1.4) `stage_start`. Stage events (`stage_loaded`, `stage_leaving`, `stage_start`, `life_lost`, `file_selected`) carry `{area, episode, reason, shine}`, `reason` a name: `"shine"`, `"exit_area"`, `"life_lost"`, `"game_over"`, `"way_out"`, `"warp"`, `"file"` or `"other"`.
+The names are the C events' without `SMS_EV_`, in lower case: `frame`, `tick`, `draw`, `stage_loaded`, `stage_exit_request`, `stage_leaving`, `life_lost`, `game_over`, `coins_reset`, `file_selected`, `item_collected`, `pad_read`, `key`, `cutscene`, `goop_cleaned`, `object_hit`, `save_state_request`, `hide_player_model`, `player_status`, `player_damage`, `shine_collected`, `camera`, `object_move`, `mod_loaded`, `shutdown`, and for multiplayer `net_player_joined`, `net_player_left`, `net_player_arrived`, `net_session` (`{slot, name, character}`; the session's `{area, episode, session}`), (1.4) `stage_start`, and (1.5) `player_nozzle` (`{from, to, animate, reason, box}`, `reason` `"switch"`, `"swap"`, `"box"` or `"stage_start"`; set `ev.to` to change it). Stage events (`stage_loaded`, `stage_leaving`, `stage_start`, `life_lost`, `file_selected`) carry `{area, episode, reason, shine}`, `reason` a name: `"shine"`, `"exit_area"`, `"life_lost"`, `"game_over"`, `"way_out"`, `"warp"`, `"file"` or `"other"`.
 Any other name is a custom event (`"stage-timer.split"`).
 Priorities: `sms.FIRST`, `sms.EARLY`, `sms.NORMAL` (the default), `sms.LATE`, `sms.MONITOR`.
 
@@ -599,9 +606,10 @@ Objects are light userdata, for `sms.object_name`, `sms.object_position` and `sm
 | `sms.warp(area [, episode])` | leave for a stage |
 | `sms.area_name(area)` | the stage's name |
 | `sms.find_object(name)`, `sms.object_name(o)`, `sms.object_position(o)`, `sms.set_object_position(o, pos)` | objects |
-| `sms.mario()` | `nil` outside stages, or `{position, velocity, forward_speed, yaw, health, max_health, water, max_water, has_fludd, nozzle, status, status_timer, on_ground, in_water, on_yoshi, floor, object}` |
+| `sms.mario()` | `nil` outside stages, or `{position, velocity, forward_speed, yaw, health, max_health, water, max_water, has_fludd, nozzle, status, status_timer, on_ground, in_water, on_yoshi, floor, object}`, and (1.5) `current_nozzle, shirt, sunglasses, helmet` |
 | `sms.set_mario{position =, velocity =, forward_speed =, health =, water =}` | change what is given |
 | `sms.set_status(status [, arg])` | ask for a [status](#mario-statuses) |
+| `sms.set_nozzle(nozzle [, animate])`, `sms.set_fludd(has)`, `sms.set_outfit{shirt =, sunglasses =, helmet =}` | (1.5) FLUDD's [nozzle](#nozzles) (`animate` true unless given), FLUDD or not, what he wears (a piece not given stays as it is; `sms.set_outfit(shirt, sunglasses, helmet)` too, `nil` for as it is); each returns whether it was done |
 | `sms.camera()`, `sms.to_canvas(pos)` | `{position, target, up, fovy, aspect, near, far}`; a world point's `x, y, depth` on the canvas, or nothing behind the camera |
 | `sms.play_sound(id)` | a system sound: `sms.SOUND_COIN`, `SOUND_NEWS`, `SOUND_SHINE`, `SOUND_DAMAGE`, `SOUND_HEAL`, `SOUND_APPEAR`, `SOUND_CURSOR`, `SOUND_DECIDE`, `SOUND_CANCEL`, or any `MSD_SE_SY_*` number |
 | `sms.pad([port])` | `{connected, held, pressed, released, stick_x, stick_y, cstick_x, cstick_y, trigger_l, trigger_r}`; test buttons with `pad.pressed & sms.PAD_A ~= 0` (`PAD_A`, `B`, `X`, `Y`, `Z`, `L`, `R`, `START`, `UP`, `DOWN`, `LEFT`, `RIGHT`) |
@@ -977,7 +985,18 @@ Other flags (events seen, nozzles unlocked, the plaza's state) are in the decomp
 
 ### Nozzles
 
-`SmsPlayer.nozzle`: 0 spray, 1 rocket, 2 underwater, 3 Yoshi, 4 hover, 5 turbo, 7 diving helmet.
+`SmsPlayer.nozzle` (the second nozzle, the one the nozzle button swaps to), `SmsPlayer.current_nozzle` (the one out now) and `SmsEvPlayerNozzle`: 0 spray, 1 rocket, 2 underwater, 3 Yoshi (his juice: FLUDD's nozzle while Mario rides him), 4 hover, 5 turbo. The diving helmet is not a nozzle but what he wears (`SmsPlayer.helmet`, `player->set_outfit`).
+
+`SMS_EV_PLAYER_NOZZLE` (1.5) comes before FLUDD changes nozzle, once for each change the player sees, with `reason`:
+
+| `reason` (Lua) | when | `to` | cancel |
+|---|---|---|---|
+| `SMS_NOZZLE_SWITCH` (`"switch"`) | a nozzle picked up (out of its box, or lying in the stage), getting on Yoshi (`to` 3) or off him (`to` the hover, then the spray), the game's own switches, `player->set_nozzle` | changeable | the nozzle stays (a nozzle picked up is gone all the same) |
+| `SMS_NOZZLE_SWAP` (`"swap"`) | the nozzle button: to the second nozzle, or back to the spray (`to` 0) | changeable to the second nozzle (it becomes the second one), not on the way back | no swap |
+| `SMS_NOZZLE_BOX` (`"box"`) | a nozzle's box is set up as the stage loads (before `SMS_EV_STAGE_LOADED`; `from` -1, `box` the box) | the box's nozzle: 1 rocket, 4 hover, 5 turbo | the box is not in the stage |
+| `SMS_NOZZLE_STAGE_START` (`"stage_start"`) | a stage that carries FLUDD's nozzle over gives it the second nozzle the file remembers, with the spray out (Hotel Delfino, for one; not the plaza nor the worlds' own stages, where FLUDD starts with the hover), or Bowser's stage gives the rocket | changeable | FLUDD keeps the nozzles it has |
+
+`to` takes 0 to 5 (3 only to get on Yoshi, and only 3 then); another number is not taken and the nozzle asked for stays. A mod that keeps a nozzle locked refuses it for `SWITCH`, `SWAP` and `STAGE_START` (or changes `to`), and leaves its boxes out with `BOX`: the hover, FLUDD's second nozzle as most stages start, comes through `SWAP`.
 
 ### Mario statuses
 

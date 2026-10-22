@@ -2,6 +2,17 @@
 
 A release's tag is the API version (`v1.1.0` is API 1.1). Within a major version the API only grows; see [Compatibility](docs/MODDING.md#compatibility).
 
+## 1.5.0
+
+FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a randomizer's unlocks, a challenge's rules).
+
+- `SMS_EV_PLAYER_NOZZLE` (`SmsEvPlayerNozzle`: `from`, `to`, `animate`, `reason`, `box`): FLUDD is about to switch nozzle (`SMS_NOZZLE_SWITCH`: a nozzle picked up, Yoshi, the game, `player->set_nozzle`), swap with its second nozzle (`SMS_NOZZLE_SWAP`), get the nozzle the file remembers as a stage starts (`SMS_NOZZLE_STAGE_START`), or a nozzle's box is about to be set up (`SMS_NOZZLE_BOX`). `to` may be changed; cancel and the nozzle stays (a box is not in the stage). Only the player's Mario.
+- `player->set_nozzle(nozzle, animate)`, `player->set_fludd(has)`, `player->set_outfit(shirt, sunglasses, helmet)` (each 1, 0, or -1 as it is).
+- `SmsPlayer.current_nozzle`, `.shirt`, `.sunglasses`, `.helmet` (check `size`).
+- In Lua: the `player_nozzle` event, `sms.set_nozzle`, `sms.set_fludd`, `sms.set_outfit`, and `sms.mario()`'s `current_nozzle`, `shirt`, `sunglasses`, `helmet`.
+- The manual's Nozzles: the diving helmet is not a nozzle (it was listed as 7).
+- The lua mod is version 1.5.0.
+
 ## 1.4.0
 
 Server mods change and add to the stage, and run the players' games further (docs/MODDING.md, "Server mods"); and for any mod, the game's worlds, episodes and cutscenes, and why a stage is left ("world").
