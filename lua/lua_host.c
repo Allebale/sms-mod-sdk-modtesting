@@ -252,6 +252,7 @@ static const struct {
 	{"script_call", SMS_EV_SCRIPT_CALL},
 	{"map_event", SMS_EV_MAP_EVENT},
 	{"save_prompt", SMS_EV_SAVE_PROMPT},
+	{"stage_loading", SMS_EV_STAGE_LOADING},
 };
 
 static const char* const kLeaves[] = {"other", "way_out", "shine", "exit_area", "life_lost", "game_over", "warp", "file"};
@@ -388,6 +389,16 @@ static void pushEvent(lua_State* L, const SmsEvent* ev)
 			setstr(L, "reason", leaveName(p->reason));
 			setint(L, "shine", p->shine);
 		}
+		break;
+	}
+	case SMS_EV_STAGE_LOADING: {
+		const SmsEvStageLoading* p = (const SmsEvStageLoading*)d;
+		setint(L, "area", p->area);
+		setint(L, "episode", p->episode);
+		setstr(L, "reason", leaveName(p->reason));
+		setint(L, "shine", p->shine);
+		setint(L, "from_area", p->from_area);
+		setint(L, "from_episode", p->from_episode);
 		break;
 	}
 	case SMS_EV_STAGE_EXIT_REQUEST: {
@@ -704,6 +715,14 @@ static void readEvent(lua_State* L, int t, SmsEvent* ev, Script* s)
 		SmsEvStage* p = (SmsEvStage*)d;
 		p->area       = (int)fieldnum(L, t, "area", (float)p->area);
 		p->episode    = (int)fieldnum(L, t, "episode", (float)p->episode);
+		break;
+	}
+	case SMS_EV_STAGE_LOADING: {
+		SmsEvStageLoading* p = (SmsEvStageLoading*)d;
+		p->area              = (int)fieldnum(L, t, "area", (float)p->area);
+		p->episode           = (int)fieldnum(L, t, "episode", (float)p->episode);
+		p->from_area         = (int)fieldnum(L, t, "from_area", (float)p->from_area);
+		p->from_episode      = (int)fieldnum(L, t, "from_episode", (float)p->from_episode);
 		break;
 	}
 	case SMS_EV_PAD_READ: {
