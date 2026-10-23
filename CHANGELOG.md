@@ -8,6 +8,12 @@ Pre-releases (`v1.5.0-beta.1`, `-beta.2`, ...) lead to a release and are listed 
 
 FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a randomizer's unlocks, a challenge's rules); and events for every kind of mod, in the manner of other games' modding APIs: what Mario does, what happens to the stage's actors, and what the game does around them.
 
+### 1.5.0-beta.3
+
+- `game->set_hud_hidden(mod, mask)` and `game->hud_hidden()`: hide parts of the game's own HUD (`SMS_HUD_*` bits) in any game, single player included. Until now only a hosting game's server mod could, with `SMS_CMD_HUD`. The parts are left out of the HUD's drawing only, so the HUD's own animations, sounds and FLUDD's messages carry on as ever; the counters' sparkles go with them. Each mod's mask is its own and goes when the mod unloads.
+- In Lua: `sms.set_hud_hidden{...}` and `sms.hud_hidden()`.
+- The lua mod is version 1.5.0-beta.3.
+
 ### 1.5.0-beta.2
 
 - Events for every kind of mod (docs/MODDING.md, "Events for every kind of mod"), each general enough for many mods:

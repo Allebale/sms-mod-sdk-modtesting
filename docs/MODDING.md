@@ -392,6 +392,7 @@ Structs a mod passes in for the game to fill (`SmsGameState`, `SmsPlayer`, `SmsC
 | `ground(&p, &g)` | (1.4) the ground at a point, as Mario finds it: the floor below (from a little above `p`), its collision type, whether it is water's surface, the water's surface over the point (`has_water`, `water_y`) and the roof above; 0 off the stage's map |
 | `object_type(obj)` | (1.5) an object's actor type (`SMS_ACTOR_*` bits and its number), 0 when it has none |
 | `object_health(obj, &max)` | (1.5) an enemy's health now, and its most (`max` may be NULL); -1 when it is not one with health |
+| `set_hud_hidden(mod, mask)`, `hud_hidden()` | (1.5 beta 3) hide parts of the game's own HUD in this game, single player included: `mask` is [`SMS_HUD_*`](#commands) bits ORed (`COINS`, `SHINES`, `BLUE_COINS`, `HEALTH`, `WATER`, `LIVES`, `RED_COINS`; 0 shows them again). The parts are left out of the HUD's drawing only: the HUD carries on underneath (its animations, sounds, FLUDD's messages), the counters' sparkles go with them, and a part shown again is as the game has it. Each mod's mask is its own and goes when the mod unloads; it lasts across stages. `hud_hidden` is the bits hidden now. Panels a mod draws are not affected |
 
 Objects (`SmsObject`) come from events and `find_object`; they are good until the stage changes. Do not keep them across `SMS_EV_STAGE_LEAVING`.
 
@@ -702,6 +703,7 @@ Objects are light userdata, for `sms.object_name`, `sms.object_position` and `sm
 | `sms.rgb(r, g, b)`, `sms.rgba(r, g, b, a)` | colours (or write `0xRRGGBBAA`) |
 | `sms.object_count(from, to, kind)`, `sms.object_info(from, to, kind, index)`, `sms.ground(pos)` | (1.4) the stage's objects (a table: `type`, `kind`, `position`, `rotation`, `scale`, `alive`, `hidden`, `spawned`), and the ground at a point (`floor`, `floor_type`, `water`, `water_y`, `roof`) |
 | `sms.object_type(o)`, `sms.object_health(o)` | (1.5) an object's actor type; an enemy's health and its most (`local hp, max = sms.object_health(o)`; nothing when it has none) |
+| `sms.set_hud_hidden{ coins = true, health = true, ... }`, `sms.hud_hidden()` | (1.5 beta 3) hide parts of the game's own HUD (`coins`, `shines`, `blue_coins`, `health`, `water`, `lives`, `red_coins`, or `all = true`; an empty table shows them again); returns whether the game can. `sms.hud_hidden()` is a table of what is hidden now |
 | `sms.world.kind(area)`, `sms.world.of(area)` | (1.4) what an area is (`"airstrip"`, `"plaza"`, `"world"`, `"world_part"`, `"secret"`, `"final"`, `"title"`, `"none"`); its world, or `nil` ([world](#world)) |
 | `sms.world.episodes(area)`, `sms.world.episode_shine(area, ep)`, `sms.world.episode_name(area, ep)`, `sms.world.next_episode(area)`, `sms.world.shine_episode(shine)` | its world's episodes: how many; an episode's Shine and name (`nil`: none); the one the episode select offers; a Shine's episode and world (`nil`: not an episode's) |
 | `sms.world.has_cutscene(name)`, `sms.world.play_cutscene(name [, focus [, frames]])`, `sms.world.cutscene_playing()` | the stage's camera cutscenes |
