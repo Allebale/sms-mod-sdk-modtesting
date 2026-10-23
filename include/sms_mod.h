@@ -42,7 +42,7 @@
 #define SMS_MOD_API_MAJOR 1
 #define SMS_MOD_API_MINOR 5
 /* 0 in a release; N in the pre-release vMAJOR.MINOR.0-beta.N (API 1.5) */
-#define SMS_MOD_API_PRERELEASE 2
+#define SMS_MOD_API_PRERELEASE 3
 #define SMS_MOD_API_VERSION ((uint32_t)SMS_MOD_API_MAJOR << 16 | SMS_MOD_API_MINOR)
 
 #if defined(_WIN32)
@@ -861,6 +861,19 @@ typedef struct SmsGameApi {
 	   which may be NULL), -1 when it is not one with health. */
 	uint32_t (*object_type)(SmsObject obj);
 	int (*object_health)(SmsObject obj, int* max);
+	/* API 1.5 beta 3: hide parts of the game's own HUD in this game, in any
+	   game (single player too, unlike the host-only SMS_CMD_HUD): mask is
+	   SMS_HUD_* bits ORed, 0 shows them all again. The parts are left out of
+	   the HUD's drawing only, so the HUD carries on as ever underneath (its
+	   animations, sounds and FLUDD's messages), and a part shown again is
+	   exactly as the game has it; the coin, Shine and blue coin counters'
+	   sparkles go with them. Each mod's mask is its own, the HUD hides every
+	   mod's, and a mod's goes when it unloads; it lasts across stages.
+	   hud_hidden: the bits hidden now, whoever hides them (any mod, a server,
+	   or the player's own HUD settings, where the game has them). Panels a
+	   mod draws with draw->* are not affected. */
+	void (*set_hud_hidden)(SmsMod* mod, uint32_t mask);
+	uint32_t (*hud_hidden)(void);
 } SmsGameApi;
 
 /* The game's cube sets (api->game->in_cube). */

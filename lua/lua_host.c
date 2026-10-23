@@ -1094,6 +1094,44 @@ static int l_set_nozzle(lua_State* L)
 	return 1;
 }
 
+static int fieldbool(lua_State* L, int t, const char* k);
+
+/* the HUD's parts, by the bit (SMS_HUD_*) each is */
+static const char* const kHudParts[] = {"coins", "shines", "blue_coins", "health", "water", "lives", "red_coins"};
+
+/* sms.set_hud_hidden{ coins = true, health = true, ... } or { all = true };
+   an empty table (or none) shows the HUD again. Returns whether the game
+   can (API 1.5 beta 3). */
+static int l_set_hud_hidden(lua_State* L)
+{
+	uint32_t mask = 0;
+	if (lua_istable(L, 1)) {
+		const int all = fieldbool(L, 1, "all");
+		for (int k = 0; k < 7; k++)
+			if (all || fieldbool(L, 1, kHudParts[k]))
+				mask |= 1u << k;
+	}
+	if (!SMS_API_HAS(api->game, set_hud_hidden)) {
+		lua_pushboolean(L, 0);
+		return 1;
+	}
+	api->game->set_hud_hidden(MOD(L), mask);
+	lua_pushboolean(L, 1);
+	return 1;
+}
+
+/* sms.hud_hidden(): { coins = true, ... } for the parts hidden now, whoever hides them */
+static int l_hud_hidden(lua_State* L)
+{
+	const uint32_t mask = SMS_API_HAS(api->game, hud_hidden) ? api->game->hud_hidden() : 0;
+	lua_newtable(L);
+	for (int k = 0; k < 7; k++) {
+		lua_pushboolean(L, (mask >> k) & 1u);
+		lua_setfield(L, -2, kHudParts[k]);
+	}
+	return 1;
+}
+
 static int l_set_fludd(lua_State* L)
 {
 	lua_pushboolean(L, SMS_API_HAS(api->player, set_fludd) && api->player->set_fludd(lua_toboolean(L, 1)));
@@ -2058,6 +2096,7 @@ static const luaL_Reg kSms[] = {
 	{"object_position", l_object_position}, {"set_object_position", l_set_object_position},
 	{"mario", l_mario}, {"set_mario", l_set_mario}, {"set_status", l_set_status}, {"camera", l_camera},
 	{"set_nozzle", l_set_nozzle}, {"set_fludd", l_set_fludd}, {"set_outfit", l_set_outfit},
+	{"set_hud_hidden", l_set_hud_hidden}, {"hud_hidden", l_hud_hidden},
 	{"to_canvas", l_to_canvas}, {"play_sound", l_play_sound},
 	{"pad", l_pad}, {"key_down", l_key_down}, {"key_pressed", l_key_pressed}, {"key", l_key},
 	{"key_name", l_key_name}, {"bind_key", l_bind_key}, {"capture", l_capture}, {"captured_by", l_captured_by},
