@@ -869,8 +869,9 @@ typedef struct SmsGameApi {
 	   exactly as the game has it; the coin, Shine and blue coin counters'
 	   sparkles go with them. Each mod's mask is its own, the HUD hides every
 	   mod's, and a mod's goes when it unloads; it lasts across stages.
-	   hud_hidden: the bits hidden now (any mod's, or a server's). Panels a mod
-	   draws with draw->* are not affected. */
+	   hud_hidden: the bits hidden now, whoever hides them (any mod, a server,
+	   or the player's own HUD settings, where the game has them). Panels a
+	   mod draws with draw->* are not affected. */
 	void (*set_hud_hidden)(SmsMod* mod, uint32_t mask);
 	uint32_t (*hud_hidden)(void);
 } SmsGameApi;

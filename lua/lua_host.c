@@ -1105,10 +1105,12 @@ static const char* const kHudParts[] = {"coins", "shines", "blue_coins", "health
 static int l_set_hud_hidden(lua_State* L)
 {
 	uint32_t mask = 0;
-	if (lua_istable(L, 1))
+	if (lua_istable(L, 1)) {
+		const int all = fieldbool(L, 1, "all");
 		for (int k = 0; k < 7; k++)
-			if (fieldbool(L, 1, kHudParts[k]) || fieldbool(L, 1, "all"))
+			if (all || fieldbool(L, 1, kHudParts[k]))
 				mask |= 1u << k;
+	}
 	if (!SMS_API_HAS(api->game, set_hud_hidden)) {
 		lua_pushboolean(L, 0);
 		return 1;
@@ -1118,7 +1120,7 @@ static int l_set_hud_hidden(lua_State* L)
 	return 1;
 }
 
-/* sms.hud_hidden(): { coins = true, ... } for the parts hidden now */
+/* sms.hud_hidden(): { coins = true, ... } for the parts hidden now, whoever hides them */
 static int l_hud_hidden(lua_State* L)
 {
 	const uint32_t mask = SMS_API_HAS(api->game, hud_hidden) ? api->game->hud_hidden() : 0;
