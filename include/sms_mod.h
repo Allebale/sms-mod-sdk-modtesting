@@ -42,7 +42,7 @@
 #define SMS_MOD_API_MAJOR 1
 #define SMS_MOD_API_MINOR 5
 /* 0 in a release; N in the pre-release vMAJOR.MINOR.0-beta.N (API 1.5) */
-#define SMS_MOD_API_PRERELEASE 3
+#define SMS_MOD_API_PRERELEASE 4
 #define SMS_MOD_API_VERSION ((uint32_t)SMS_MOD_API_MAJOR << 16 | SMS_MOD_API_MINOR)
 
 #if defined(_WIN32)
@@ -299,6 +299,16 @@ typedef enum SmsEventType {
 	   (save yourself, or not); the stage goes on as after the prompt.
 	   SmsEvSavePrompt. */
 	SMS_EV_SAVE_PROMPT = 59,
+	/* (API 1.5 beta 4) A stage is about to load, its episode chosen: every
+	   stage the game loads, as SMS_EV_STAGE_LOADED is sent for, but before it
+	   loads. After a world's episode select (the episode picked), after the
+	   game picks the episode itself (the plaza, Hotel Delfino, Pinna Park and
+	   Casino Delfino with SMS_EPISODE_SELECT), on a lost life's reload, a warp,
+	   a file chosen. Changeable: another area/episode and that stage loads
+	   instead; from_area/from_episode and Mario comes from there. Once a load,
+	   before the movie some stages open with (that stage's: the one that
+	   loads). SmsEvStageLoading. */
+	SMS_EV_STAGE_LOADING = 60,
 
 	/* core->event_id hands out ids from here for mods' own events. */
 	SMS_EV_CUSTOM_BASE = 0x10000
@@ -382,6 +392,24 @@ typedef enum SmsLeaveReason {
 	SMS_LEAVE_WARP = 6,      /* a mod's game->warp */
 	SMS_LEAVE_FILE = 7       /* a file was chosen at file select */
 } SmsLeaveReason;
+
+/* SMS_EV_STAGE_LOADING (API 1.5 beta 4). Its first fields are SmsEvStage's. */
+typedef struct SmsEvStageLoading {
+	/* The stage about to load. Changeable: that one loads instead, as if the
+	   game had chosen it (a world's episode is recorded as its episode select
+	   records it, and a new visit's coins start afresh). An area and episode
+	   the game has no stage for are not taken; nor is the title's (area 15),
+	   to or from. */
+	int area, episode;
+	int reason; /* SMS_LEAVE_*: how the last stage was left (SmsEvStage.reason) */
+	int shine;  /* for SMS_LEAVE_SHINE, the Shine (0..119); otherwise -1 */
+	/* Where the game has Mario come from: the stage before; after a world's
+	   episode select, that world with SMS_EPISODE_SELECT. The plaza starts
+	   him where that world's way in is (its painting, its pipe, the boat),
+	   and a stage reads it for how he arrives. Changeable (an area 0..254,
+	   an episode 0..255). */
+	int from_area, from_episode;
+} SmsEvStageLoading;
 
 /* SmsEvStage.episode: no episode named; for a world's way in from the plaza
    (SMS_AREA_WORLD), its episode select chooses. */

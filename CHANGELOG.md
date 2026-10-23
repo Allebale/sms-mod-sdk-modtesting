@@ -8,6 +8,12 @@ Pre-releases (`v1.5.0-beta.1`, `-beta.2`, ...) lead to a release and are listed 
 
 FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a randomizer's unlocks, a challenge's rules); and events for every kind of mod, in the manner of other games' modding APIs: what Mario does, what happens to the stage's actors, and what the game does around them.
 
+### 1.5.0-beta.4
+
+- `SMS_EV_STAGE_LOADING` (`SmsEvStageLoading`: `area`, `episode`, `reason`, `shine`, `from_area`, `from_episode`): a stage is about to load, its episode chosen. `SMS_EV_STAGE_LEAVING` comes before a world's episode select, and before the game picks the plaza's (or Hotel Delfino's, Pinna Park's, Casino Delfino's) episode; this comes after, once a load, for every stage loaded. Change `area`/`episode` and that stage loads instead (its episode recorded, a new visit's coins afresh, its own opening movie); change `from_area`/`from_episode` and Mario comes from there (the plaza starts him by that world's way in). A multiplayer host's change is everyone's.
+- In Lua: the `stage_loading` event, all but `reason` and `shine` changeable.
+- The lua mod is version 1.5.0-beta.4.
+
 ### 1.5.0-beta.3
 
 - `game->set_hud_hidden(mod, mask)` and `game->hud_hidden()`: hide parts of the game's own HUD (`SMS_HUD_*` bits) in any game, single player included. Until now only a hosting game's server mod could, with `SMS_CMD_HUD`. The parts are left out of the HUD's drawing only, so the HUD's own animations, sounds and FLUDD's messages carry on as ever; the counters' sparkles go with them. Each mod's mask is its own and goes when the mod unloads.
