@@ -42,7 +42,7 @@
 #define SMS_MOD_API_MAJOR 1
 #define SMS_MOD_API_MINOR 5
 /* 0 in a release; N in the pre-release vMAJOR.MINOR.0-beta.N (API 1.5) */
-#define SMS_MOD_API_PRERELEASE 6
+#define SMS_MOD_API_PRERELEASE 7
 #define SMS_MOD_API_VERSION ((uint32_t)SMS_MOD_API_MAJOR << 16 | SMS_MOD_API_MINOR)
 
 #if defined(_WIN32)
@@ -338,6 +338,14 @@ typedef enum SmsEventType {
 	   offers). Changeable (`shine`). Many a time: the select asks as its
 	   cursor moves. SmsEvEpisodeShine. */
 	SMS_EV_EPISODE_SHINE = 66,
+	/* (API 1.5 beta 7) A file chosen at file select is about to start (the
+	   game leaves for its first stage): after SMS_EV_SAVE_FILE's LOADED or
+	   NEW, again at each step of the file select (more than once a frame;
+	   time a wait with core->time) while a mod cancels it, then
+	   SMS_EV_FILE_SELECTED once. Cancellable: cancel and the file select
+	   waits as it is, this step (a mod's own screen first: a game's options,
+	   a seed). SmsEvFileStarting. */
+	SMS_EV_FILE_STARTING = 67,
 
 	/* core->event_id hands out ids from here for mods' own events. */
 	SMS_EV_CUSTOM_BASE = 0x10000
@@ -700,6 +708,11 @@ typedef struct SmsEvSaveFile {
 	int file;  /* 0..2 (A, B, C) */
 	int from;  /* SMS_SAVE_FILE_COPIED: the file copied; otherwise -1 */
 } SmsEvSaveFile;
+
+typedef struct SmsEvFileStarting {
+	int file;   /* 0..2 (A, B, C); -1 a game without a memory card */
+	int is_new; /* 1 a new game (SMS_SAVE_FILE_NEW), 0 a file loaded */
+} SmsEvFileStarting;
 
 /* SmsEvNozzleFire.how (API 1.5 beta 6) */
 #define SMS_FIRE_BURST    0 /* A while R is held */
@@ -1391,11 +1404,19 @@ typedef enum SmsCmdType {
 	SMS_CMD_RUMBLE = 24,
 	/* API 1.5 beta 5. Player i[0] was splashed, as Shadow Mario is when
 	   FLUDD's water hits him: a splash at f[0..2] with his hit sound, the
-	   player's model flushed for a few seconds and, when i[2] > 0, his water
+	   player's model flushed for a moment (API 1.5 beta 7: f[3] seconds;
+	   0 about 0.8; beta 5 and 6 games: 4) and, when i[2] > 0, his water
 	   meter over their head, i[1] of i[2] full, for twenty seconds. i[3]
 	   SMS_SPLASH_* bits. Send it to everyone: each game shows it on its own
 	   copy of that player (the player's own game on its Mario). */
-	SMS_CMD_SPLASH = 25
+	SMS_CMD_SPLASH = 25,
+	/* API 1.5 beta 7. An arena's edge: the player is kept within f[3] units
+	   (across the ground) of f[0..2], pushed back in as they reach it, and
+	   with SMS_BOUNDS_RING in i[0] a solid line on the ground and the water
+	   marks it, in i[1]'s colour (0xRRGGBBAA; 0 red). f2[0] seconds: the
+	   edge glides there from where it was (a closing arena). f[3] 0: none.
+	   Kept per session as sticky commands are, when sent sticky. */
+	SMS_CMD_BOUNDS = 26
 } SmsCmdType;
 
 #define SMS_CMD_STICKY 1u
@@ -1449,6 +1470,10 @@ typedef enum SmsCmdType {
 #define SMS_PLAYER_HEALTH    3 /* i[1]: 0 to 8 (0 does not lose a life) */
 #define SMS_PLAYER_WATER     4 /* i[1]: FLUDD's tank, 0 to 100 percent */
 #define SMS_PLAYER_NOZZLE    5 /* i[1]: 0 spray, 1 rocket, 2 underwater, 4 hover, 5 turbo */
+#define SMS_PLAYER_ADD_WATER 6 /* API 1.5 beta 7. i[1]: percent of a full tank added (less when negative) */
+#define SMS_PLAYER_WATER_USE 7 /* API 1.5 beta 7. i[1]: FLUDD uses water at this percent of its own rate
+                                  (200 twice as fast; 100 as the game does), for the session */
+#define SMS_PLAYER_FLUDD     8 /* API 1.5 beta 7. i[1]: 1 FLUDD on the player's back, 0 off it */
 
 /* SMS_CMD_RULES's bits */
 #define SMS_RULE_NO_FLUDD   1u /* FLUDD sprays nothing */
@@ -1459,6 +1484,14 @@ typedef enum SmsCmdType {
    reports each hit to the host (SMS_EV_NET_PLAYER_SPLASHED) and the drop
    stops there; a server mod says what a hit does (SMS_CMD_SPLASH). */
 #define SMS_RULE_WATER_HITS 16u
+/* API 1.5 beta 7: FLUDD fills up only as the server says (SMS_PLAYER_WATER,
+   SMS_PLAYER_ADD_WATER): not from the water around (sea, pools, fountains),
+   bottles (a server's spawned ones too: their look and sparkle without the
+   water, which the server gives), fruit and 1-ups, or a barrel's hip drop. */
+#define SMS_RULE_NO_REFILL 32u
+
+/* SMS_CMD_BOUNDS's i[0] bits (API 1.5 beta 7) */
+#define SMS_BOUNDS_RING 1u /* draw the edge: a solid line along the ground */
 
 /* SMS_CMD_SPLASH's i[3] bits (API 1.5 beta 5) */
 #define SMS_SPLASH_DOWN  1u /* the meter is empty: they are knocked down, as Shadow Mario falls */
