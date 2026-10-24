@@ -1459,6 +1459,7 @@ typedef enum SmsCmdType {
 #define SMS_PLAYER_ADD_WATER 6 /* API 1.5 beta 7. i[1]: percent of a full tank added (less when negative) */
 #define SMS_PLAYER_WATER_USE 7 /* API 1.5 beta 7. i[1]: FLUDD uses water at this percent of its own rate
                                   (200 twice as fast; 100 as the game does), for the session */
+#define SMS_PLAYER_FLUDD     8 /* API 1.5 beta 7. i[1]: 1 FLUDD on the player's back, 0 off it */
 
 /* SMS_CMD_RULES's bits */
 #define SMS_RULE_NO_FLUDD   1u /* FLUDD sprays nothing */
@@ -1470,7 +1471,8 @@ typedef enum SmsCmdType {
    stops there; a server mod says what a hit does (SMS_CMD_SPLASH). */
 #define SMS_RULE_WATER_HITS 16u
 /* API 1.5 beta 7: FLUDD fills up only as the server says (SMS_PLAYER_WATER,
-   SMS_PLAYER_ADD_WATER): not from the water around (sea, pools, fountains),
+   SMS_PLAYER_ADD_WATER, and the items it spawns: SMS_CMD_SPAWN's bottles):
+   not from the water around (sea, pools, fountains), the stage's own
    bottles, fruit and 1-ups, or a barrel's hip drop. */
 #define SMS_RULE_NO_REFILL 32u
 

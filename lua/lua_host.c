@@ -1914,7 +1914,7 @@ static int n_send(lua_State* L)
 	static const char* const kActors[] = {"show", "hide", "kill"};
 	static const char* const kObject[] = {"place", "speed", "phase", "show", "hide", "scale", "turn", "move", "kill"};
 	static const char* const kPlayer[] = {"lose_life", "launch", "dismount", "health", "water", "nozzle", "add_water",
-	                                      "water_use"};
+	                                      "water_use", "fludd"};
 	static const char* const kScreen[] = {"clear", "fade_out", "fade_in", "flash"};
 	static const char* const kRules[]  = {"no_fludd", "no_damage", "no_pause", "no_pickups", "water_hits", "no_refill"};
 	static const char* const kHud[]    = {"coins", "shines", "blue_coins", "health", "water", "lives", "red_coins"};
@@ -2011,7 +2011,7 @@ static int n_send(lua_State* L)
 		break;
 	case SMS_CMD_PLAYER: {
 		SmsVec3 dir = {0, 1, 0};
-		c.i[0] = fieldchoice(L, 2, "action", kPlayer, 8, SMS_PLAYER_LOSE_LIFE);
+		c.i[0] = fieldchoice(L, 2, "action", kPlayer, 9, SMS_PLAYER_LOSE_LIFE);
 		c.i[1] = (int32_t)fieldint(L, 2, "value", 0);
 		lua_getfield(L, 2, "direction");
 		tovec(L, -1, &dir);
