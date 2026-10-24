@@ -338,6 +338,12 @@ typedef enum SmsEventType {
 	   offers). Changeable (`shine`). Many a time: the select asks as its
 	   cursor moves. SmsEvEpisodeShine. */
 	SMS_EV_EPISODE_SHINE = 66,
+	/* (API 1.5 beta 7) A file chosen at file select is about to start (the
+	   game leaves for its first stage): every frame until it does, after
+	   SMS_EV_SAVE_FILE's LOADED or NEW and before SMS_EV_FILE_SELECTED.
+	   Cancellable: cancel and the file select waits as it is, this frame (a
+	   mod's own screen first: a game's options, a seed). SmsEvFileStarting. */
+	SMS_EV_FILE_STARTING = 67,
 
 	/* core->event_id hands out ids from here for mods' own events. */
 	SMS_EV_CUSTOM_BASE = 0x10000
@@ -700,6 +706,11 @@ typedef struct SmsEvSaveFile {
 	int file;  /* 0..2 (A, B, C) */
 	int from;  /* SMS_SAVE_FILE_COPIED: the file copied; otherwise -1 */
 } SmsEvSaveFile;
+
+typedef struct SmsEvFileStarting {
+	int file;   /* 0..2 (A, B, C); -1 a game without a memory card */
+	int is_new; /* 1 a new game (SMS_SAVE_FILE_NEW), 0 a file loaded */
+} SmsEvFileStarting;
 
 /* SmsEvNozzleFire.how (API 1.5 beta 6) */
 #define SMS_FIRE_BURST    0 /* A while R is held */

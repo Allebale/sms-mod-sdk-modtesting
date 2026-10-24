@@ -14,6 +14,7 @@ FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a rando
 - `SMS_RULE_NO_REFILL`: FLUDD fills up only as the server says, not from the water around (sea, pools), bottles, fruit, 1-ups or a barrel's hip drop.
 - `SMS_PLAYER_ADD_WATER` (percent of a full tank added; less when negative), `SMS_PLAYER_WATER_USE` (FLUDD's water used at this percent of its own rate, for the session) and `SMS_PLAYER_FLUDD` (FLUDD on the player's back or off it).
 - In Lua: the `bounds` command (`position`, `radius`, `ring`, `color`, `seconds`), the `no_refill` rule, and the player actions `add_water`, `water_use` and `fludd` (`value`).
+- `SMS_EV_FILE_STARTING` (`SmsEvFileStarting`: `file`, `is_new`): a file chosen at file select is about to start, every frame until the game leaves for its first stage. Cancellable: the file select waits as it is that frame, so a mod's own screen (a game's options, a seed) comes first. In Lua: `file_starting` (return `true` to wait).
 - The lua mod is version 1.5.0-beta.7.
 
 ### 1.5.0-beta.6
