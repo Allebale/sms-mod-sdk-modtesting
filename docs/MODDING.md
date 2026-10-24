@@ -816,6 +816,7 @@ Mods load once multiplayer has started, so `net->role()` is right while they loa
 | `set_mode(name)`, `set_status(text)` | host: what the launcher's list of games shows, the mode's name (`"squid-race"`, 15 characters) and a line of its state (`"Squid Race: racing"`) |
 | `set_look(slot, look)`, `look(slot, out, size)` | (1.4) host: a player's Customize Mario colours forced, Mario's and FLUDD's (`"hat=00d0ff;shirt=00d0ff;overalls=ff8000;fluddBody=ff00ff"`, the launcher's region names): in their own game (their own Mario repainted at once) and every other, for newcomers too, until set again; `NULL` gives them their own back. `look` reads anyone's as it is now |
 | `set_respawn(slot, how, &p, yaw)` | (1.4) host: where a player comes back each time they arrive in the session (just joined, back after a lost life): `SMS_RESPAWN_WARP` (there), `SMS_RESPAWN_BLOOPER` (onto a Blooper there) or `SMS_RESPAWN_NONE` (the stage's own start), after the session's sticky commands. It lasts until set again or the player leaves |
+| `set_collision(on)`, `collision()` | (1.5 beta 5) host: players collide with each other (1) or pass through (0), in every game, from now on; -1 gives back the host's own setting (its settings menu's Player Collision, `SMS_MULTIPLAYER_COLLISION=1`), which is what holds until a server mod sets it. `collision()`: whether they collide now, in any game ([Water fights](#water-fights)) |
 
 `SmsNetPlayer`:
 
@@ -853,13 +854,14 @@ Mods load once multiplayer has started, so `net->role()` is right while they loa
 | `SMS_CMD_OBJECT` (1.4) | `i[0]..i[1]` actor types, `text` the object's kind, `i[2]` which (0 first; -1 each), `i[3]` `SMS_OBJECT_*`, `f[0..3]`, `f2[0]` | `from`, `to` (any type by default), `kind`, `index` (-1 by default: each), `what` (`"place"`, `"speed"`, `"phase"`, `"show"`, `"hide"`, `"scale"`, `"turn"`, `"move"`, `"kill"`), `position`, `yaw`, `times`, `seconds`, `size`, `turn` | one of the stage's objects ([below](#one-object)) |
 | `SMS_CMD_SPAWN` (1.4) | a copy: `i[0]..i[1]` types, `text` kind, `i[2]` which; an item: types 0 and 0, `text` its name; `i[3]` its id, `f[0..2]` place, `f[3]` turn | `from`, `to`, `kind`, `index`, or `item`; `id`, `position`, `yaw` | a new object in the stage ([below](#spawning)) |
 | `SMS_CMD_PLAYER` (1.4) | `i[0]` `SMS_PLAYER_*`, `i[1]` a value, `f[0..2]` a direction, `f[3]` a speed | `action` (`"lose_life"`, `"launch"`, `"dismount"`, `"health"`, `"water"`, `"nozzle"`), `value`, `direction`, `speed` | the player: the game's own miss now; thrown along a direction (40 a big push); off a Blooper or Yoshi; health 0 to 8; FLUDD's tank in percent; a nozzle (0 spray, 1 rocket, 2 underwater, 4 hover, 5 turbo) |
-| `SMS_CMD_RULES` (1.4) | `i[0]` `SMS_RULE_*` bits | `no_fludd`, `no_damage`, `no_pause`, `no_pickups` | what the player may do: FLUDD sprays nothing; no health lost (falls still cost a life); no pause menu or map; coins and items stay where they are. 0: everything again |
+| `SMS_CMD_RULES` (1.4) | `i[0]` `SMS_RULE_*` bits | `no_fludd`, `no_damage`, `no_pause`, `no_pickups`, `water_hits` | what the player may do: FLUDD sprays nothing; no health lost (falls still cost a life); no pause menu or map; coins and items stay where they are; (1.5 beta 5) FLUDD's water hits the other players ([Water fights](#water-fights)). 0: everything again |
 | `SMS_CMD_BOARD` (1.4) | `i[0]` a row (0 to 7; -1 every row), `i[1]` colour, `text` | `row`, `color`, `text` | a board at the left: that row's text in its colour (white by default); `""` clears it. Sticky per row: standings, a lap counter |
 | `SMS_CMD_HUD` (1.4) | `i[0]` `SMS_HUD_*` bits | `coins`, `shines`, `blue_coins`, `health`, `water`, `lives`, `red_coins`, `all` | those parts of the HUD hidden (0: all back) |
 | `SMS_CMD_MARKER` (1.4) | `i[0]` a marker (0 to 7), `i[1]` a slot or -1, `i[2]` colour, `i[3]` 1 to take it away, `f[0..2]` a place, `text` | `id`, `slot`, `color`, `remove`, `position`, `text` | a marker on the picture over a place, or over a player: its text in a pill underlined in its colour, or an arrow pointing down when `""` |
 | `SMS_CMD_SCREEN` (1.4) | `i[0]` `SMS_SCREEN_*`, `i[1]` colour (its alpha the strongest), `f[0]` seconds | `effect` (`"clear"`, `"fade_out"`, `"fade_in"`, `"flash"`), `color`, `seconds` | the picture fades out to the colour (and stays), in from it, or flashes it; the text the server shows stays over it |
 | `SMS_CMD_SHAKE` (1.4) | `f[0]` how hard (1 a hard hit, up to 5), `f[1]` seconds | `strength`, `seconds` | the camera shakes, dying away |
 | `SMS_CMD_RUMBLE` (1.4) | `i[0]` 1 hard, 0 weak, `i[1]` times | `hard`, `times` | the player's controller rumbles (as their own rumble setting allows) |
+| `SMS_CMD_SPLASH` (1.5 beta 5) | `i[0]` the player splashed, `i[1]` their meter, `i[2]` its full (0: no meter), `i[3]` `SMS_SPLASH_DOWN`, `SMS_SPLASH_QUIET`, `f[0..2]` where the water hit | `slot`, `meter`, `full`, `down`, `quiet`, `position` | that player splashed as Shadow Mario is ([Water fights](#water-fights)); send it to everyone, each game shows it on its copy of them |
 
 Every command also takes:
 
@@ -904,7 +906,20 @@ A command's effects last for the session it came in: when the host moves everyon
 | `SMS_EV_NET_PLAYER_ARRIVED` | (host) a player arrived in the session it plays: just joined, back after a lost life, or following everyone to a new stage. The session's sticky commands have been sent them | `SmsEvNetPlayer` |
 | `SMS_EV_NET_SESSION` | (host) it opened a new session, which everyone follows: set the stage up here | `SmsEvNetSession`: `area`, `episode`, `session` |
 
-In Lua they are `net_player_joined`, `net_player_left`, `net_player_arrived` and `net_session`, with the same fields.
+| `SMS_EV_NET_PLAYER_SPLASHED` | (1.5 beta 5; host) a player's water hit another player, while `SMS_RULE_WATER_HITS` holds | `SmsEvNetSplash`: `slot` (the player hit), `by` (whose water), `drops` (how many hit since the last report), `position` |
+
+In Lua they are `net_player_joined`, `net_player_left`, `net_player_arrived`, `net_session` and `net_player_splashed`, with the same fields.
+
+### Water fights
+
+(API 1.5 beta 5.) A server mod can make FLUDD a water pistol: players spray each other, and whoever is hit reacts as Shadow Mario does when Mario sprays him in his chases.
+
+- **`SMS_RULE_WATER_HITS`** (`SMS_CMD_RULES`, to everyone) has FLUDD's water hit the other players. Each game judges its own player's water, as it judges what that water hits of the stage's: a drop that reaches another player stops there, and the hits are sent to the host, gathered up, about ten times a second while they keep coming. Every other game stops its copy of the drop at that player too, so nobody sees water go through anyone.
+- **`SMS_EV_NET_PLAYER_SPLASHED`** on the host: who was hit (`slot`), by whom (`by`), how many drops since the last report (`drops`), and where. A spray held on a player for a second is some 30 to 60 drops, more from close by; the hover nozzle's two streams count twice. Nothing happens to anyone until a mod says so: keep each player's score of hits, or a meter, and decide.
+- **`SMS_CMD_SPLASH`**, sent to everyone, shows a hit: Shadow Mario's water splash and hit sound where the water hit (`f[0..2]`), the player's model flushed for four seconds after the last hit as his is, and, when `i[2]` is above 0, his water meter over their head, the blue bar `i[1]` of `i[2]` full, shown for twenty seconds after the last splash. With `SMS_SPLASH_DOWN` the player is knocked down where they stand, thrown back from the water as Shadow Mario falls; the mod then does what being down means (a lost life, watching the others). `SMS_SPLASH_QUIET` changes the meter without a splash.
+- **`net->set_collision(1)`** makes players solid to each other, which suits a fight: nobody hides inside anyone, running into a player bumps you back, and you land on heads as on an enemy's, bouncing off.
+
+A water fight's mod, in short: `SMS_RULE_WATER_HITS | SMS_RULE_NO_DAMAGE` at the start, a meter per player, `SMS_CMD_SPLASH` for each `SMS_EV_NET_PLAYER_SPLASHED` with the meter left, and `SMS_SPLASH_DOWN` when it is empty. The [Splash Battle](https://github.com/chasem-dev/sms-mod-templates/tree/main/examples/splash-battle) example is one, last player standing wins.
 
 ### A small one
 

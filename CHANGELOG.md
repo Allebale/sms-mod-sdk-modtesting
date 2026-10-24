@@ -8,6 +8,14 @@ Pre-releases (`v1.5.0-beta.1`, `-beta.2`, ...) lead to a release and are listed 
 
 FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a randomizer's unlocks, a challenge's rules); and events for every kind of mod, in the manner of other games' modding APIs: what Mario does, what happens to the stage's actors, and what the game does around them.
 
+### 1.5.0-beta.5
+
+- Water fights for server mods (docs/MODDING.md, "Water fights"): `SMS_RULE_WATER_HITS` has FLUDD's water hit the other players. The shooter's game stops each drop at the player it hits and reports the hits to the host, which hears them as `SMS_EV_NET_PLAYER_SPLASHED` (`SmsEvNetSplash`: `slot`, `by`, `drops`, `position`).
+- `SMS_CMD_SPLASH`: a player splashed as Shadow Mario is when FLUDD's water hits him, in every game: his splash and hit sound where the water hit, the player's model flushed for a few seconds, and his water meter over their head (`i[1]` of `i[2]` full). `SMS_SPLASH_DOWN` knocks them down, as Shadow Mario falls when his meter is empty; `SMS_SPLASH_QUIET` shows the meter alone.
+- `net->set_collision(on)` and `net->collision()`: players collide with each other (kept out of each other, bumped back running into one, a bounce off a head). The host's setting (its settings menu, `SMS_MULTIPLAYER_COLLISION`) until a server mod sets it; -1 gives the host's setting back.
+- In Lua: the `net_player_splashed` event, the `splash` command (`slot`, `meter`, `full`, `down`, `quiet`, `position`), the `water_hits` rule, `sms.net.set_collision(on)` and `sms.net.collision()`.
+- The lua mod is version 1.5.0-beta.5.
+
 ### 1.5.0-beta.4
 
 - `SMS_EV_STAGE_LOADING` (`SmsEvStageLoading`: `area`, `episode`, `reason`, `shine`, `from_area`, `from_episode`): a stage is about to load, its episode chosen. `SMS_EV_STAGE_LEAVING` comes before a world's episode select, and before the game picks the plaza's (or Hotel Delfino's, Pinna Park's, Casino Delfino's) episode; this comes after, once a load, for every stage loaded. Change `area`/`episode` and that stage loads instead (its episode recorded, a new visit's coins afresh, its own opening movie); change `from_area`/`from_episode` and Mario comes from there (the plaza starts him by that world's way in). A multiplayer host's change is everyone's.

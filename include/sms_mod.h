@@ -42,7 +42,7 @@
 #define SMS_MOD_API_MAJOR 1
 #define SMS_MOD_API_MINOR 5
 /* 0 in a release; N in the pre-release vMAJOR.MINOR.0-beta.N (API 1.5) */
-#define SMS_MOD_API_PRERELEASE 4
+#define SMS_MOD_API_PRERELEASE 5
 #define SMS_MOD_API_VERSION ((uint32_t)SMS_MOD_API_MAJOR << 16 | SMS_MOD_API_MINOR)
 
 #if defined(_WIN32)
@@ -309,6 +309,12 @@ typedef enum SmsEventType {
 	   before the movie some stages open with (that stage's: the one that
 	   loads). SmsEvStageLoading. */
 	SMS_EV_STAGE_LOADING = 60,
+	/* (API 1.5 beta 5) Host: a player's FLUDD water hit another player, as
+	   the shooter's game saw it (only while SMS_RULE_WATER_HITS is in force:
+	   docs/MODDING.md, "Water fights"). The drops that hit since the last
+	   report, about ten reports a second while they keep hitting.
+	   SmsEvNetSplash. */
+	SMS_EV_NET_PLAYER_SPLASHED = 61,
 
 	/* core->event_id hands out ids from here for mods' own events. */
 	SMS_EV_CUSTOM_BASE = 0x10000
@@ -763,6 +769,14 @@ typedef struct SmsEvNetSession {
 	int area, episode;
 	uint32_t session;  /* its number, for api->net->session() */
 } SmsEvNetSession;
+
+/* SMS_EV_NET_PLAYER_SPLASHED (API 1.5 beta 5) */
+typedef struct SmsEvNetSplash {
+	int slot;          /* the player the water hit */
+	int by;            /* whose water it was */
+	int drops;         /* how many of their drops hit since the last report (1 or more) */
+	SmsVec3 position;  /* where the last of them hit */
+} SmsEvNetSplash;
 
 typedef struct SmsEvMod {
 	const char* id;
@@ -1280,7 +1294,14 @@ typedef enum SmsCmdType {
 	/* The camera shakes, f[0] strong (1 a hard hit), for f[1] seconds. */
 	SMS_CMD_SHAKE = 23,
 	/* The controller rumbles: i[0] 0 weak, 1 hard, i[1] times (1 or more). */
-	SMS_CMD_RUMBLE = 24
+	SMS_CMD_RUMBLE = 24,
+	/* API 1.5 beta 5. Player i[0] was splashed, as Shadow Mario is when
+	   FLUDD's water hits him: a splash at f[0..2] with his hit sound, the
+	   player's model flushed for a few seconds and, when i[2] > 0, his water
+	   meter over their head, i[1] of i[2] full, for twenty seconds. i[3]
+	   SMS_SPLASH_* bits. Send it to everyone: each game shows it on its own
+	   copy of that player (the player's own game on its Mario). */
+	SMS_CMD_SPLASH = 25
 } SmsCmdType;
 
 #define SMS_CMD_STICKY 1u
@@ -1340,6 +1361,14 @@ typedef enum SmsCmdType {
 #define SMS_RULE_NO_DAMAGE  2u /* no health lost (falls and drops still cost a life) */
 #define SMS_RULE_NO_PAUSE   4u /* no pause menu or map */
 #define SMS_RULE_NO_PICKUPS 8u /* coins and items stay where they are */
+/* API 1.5 beta 5: FLUDD's water hits the other players. The shooter's game
+   reports each hit to the host (SMS_EV_NET_PLAYER_SPLASHED) and the drop
+   stops there; a server mod says what a hit does (SMS_CMD_SPLASH). */
+#define SMS_RULE_WATER_HITS 16u
+
+/* SMS_CMD_SPLASH's i[3] bits (API 1.5 beta 5) */
+#define SMS_SPLASH_DOWN  1u /* the meter is empty: they are knocked down, as Shadow Mario falls */
+#define SMS_SPLASH_QUIET 2u /* no splash or sound: the meter alone (a player joining sees it) */
 
 /* SMS_CMD_HUD's bits */
 #define SMS_HUD_COINS      1u
@@ -1401,6 +1430,14 @@ typedef struct SmsNetApi {
 	   joined, back after a lost life): SMS_RESPAWN_*, at p facing yaw
 	   degrees, after the session's sticky commands. NONE: the stage's own. */
 	int (*set_respawn)(int slot, int how, const SmsVec3* p, float yaw);
+	/* API 1.5 beta 5. Players collide with each other: in every game, its
+	   player is kept out of the others (running into one bumps them back, as
+	   into an enemy) and lands on their heads as on an enemy's. The host's
+	   setting (its settings menu, SMS_MULTIPLAYER_COLLISION) until a server
+	   mod sets it: host only, 1 on, 0 off, -1 the host's setting again;
+	   returns 1 when done. collision(): whether players collide now (any game). */
+	int (*set_collision)(int on);
+	int (*collision)(void);
 } SmsNetApi;
 
 /* ------------------------------------------------------------------ worlds and episodes (API 1.4) */

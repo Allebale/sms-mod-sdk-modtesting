@@ -253,6 +253,7 @@ static const struct {
 	{"map_event", SMS_EV_MAP_EVENT},
 	{"save_prompt", SMS_EV_SAVE_PROMPT},
 	{"stage_loading", SMS_EV_STAGE_LOADING},
+	{"net_player_splashed", SMS_EV_NET_PLAYER_SPLASHED},
 };
 
 static const char* const kLeaves[] = {"other", "way_out", "shine", "exit_area", "life_lost", "game_over", "warp", "file"};
@@ -690,6 +691,14 @@ static void pushEvent(lua_State* L, const SmsEvent* ev)
 		setint(L, "area", p->area);
 		setint(L, "episode", p->episode);
 		setint(L, "session", p->session);
+		break;
+	}
+	case SMS_EV_NET_PLAYER_SPLASHED: {
+		const SmsEvNetSplash* p = (const SmsEvNetSplash*)d;
+		setint(L, "slot", p->slot);
+		setint(L, "by", p->by);
+		setint(L, "drops", p->drops);
+		setvec(L, "position", &p->position);
 		break;
 	}
 	default:
@@ -1741,13 +1750,13 @@ static int n_send(lua_State* L)
 	static const char* const kTypes[] = {"", "banner", "notice", "status", "timer", "ready_go", "sound", "music",
 	                                     "warp", "hold", "mount", "watch", "actors", "stop_script", "stay", "object",
 	                                     "spawn", "player", "rules", "board", "hud", "marker", "screen", "shake",
-	                                     "rumble"};
+	                                     "rumble", "splash"};
 	static const char* const kTimer[]  = {"hide", "show", "up", "down"};
 	static const char* const kActors[] = {"show", "hide", "kill"};
 	static const char* const kObject[] = {"place", "speed", "phase", "show", "hide", "scale", "turn", "move", "kill"};
 	static const char* const kPlayer[] = {"lose_life", "launch", "dismount", "health", "water", "nozzle"};
 	static const char* const kScreen[] = {"clear", "fade_out", "fade_in", "flash"};
-	static const char* const kRules[]  = {"no_fludd", "no_damage", "no_pause", "no_pickups"};
+	static const char* const kRules[]  = {"no_fludd", "no_damage", "no_pause", "no_pickups", "water_hits"};
 	static const char* const kHud[]    = {"coins", "shines", "blue_coins", "health", "water", "lives", "red_coins"};
 	luaL_checktype(L, 2, LUA_TTABLE);
 	const uint32_t to = toMask(L, 1);
@@ -1756,7 +1765,7 @@ static int n_send(lua_State* L)
 	memset(&c, 0, sizeof c);
 	c.size = sizeof c;
 	c.type = (uint32_t)fieldchoice(L, 2, "type", kTypes, (int)(sizeof kTypes / sizeof kTypes[0]), 0);
-	if (!c.type || c.type > SMS_CMD_RUMBLE)
+	if (!c.type || c.type > SMS_CMD_SPLASH)
 		return luaL_error(L, "sms.net.send: no such command type");
 	c.flags    = (fieldbool(L, 2, "sticky") ? SMS_CMD_STICKY : 0) | (fieldbool(L, 2, "unstick") ? SMS_CMD_UNSTICK : 0);
 	c.delay_ms = (uint32_t)(fieldnum(L, 2, "delay", 0) * 1000.0f);
@@ -1852,7 +1861,7 @@ static int n_send(lua_State* L)
 		break;
 	}
 	case SMS_CMD_RULES:
-		for (int k = 0; k < 4; k++)
+		for (int k = 0; k < 5; k++)
 			if (fieldbool(L, 2, kRules[k]))
 				c.i[0] |= 1 << k;
 		break;
@@ -1885,6 +1894,13 @@ static int n_send(lua_State* L)
 		c.i[0] = fieldbool(L, 2, "hard");
 		c.i[1] = (int32_t)fieldint(L, 2, "times", 1);
 		break;
+	case SMS_CMD_SPLASH:
+		c.i[0] = (int32_t)fieldint(L, 2, "slot", 0);
+		c.i[1] = (int32_t)fieldint(L, 2, "meter", 0);
+		c.i[2] = (int32_t)fieldint(L, 2, "full", 0);
+		c.i[3] = (fieldbool(L, 2, "down") ? (int32_t)SMS_SPLASH_DOWN : 0) | (fieldbool(L, 2, "quiet") ? (int32_t)SMS_SPLASH_QUIET : 0);
+		c.f[0] = at.x, c.f[1] = at.y, c.f[2] = at.z;
+		break;
 	default: break;
 	}
 	lua_pushinteger(L, hasNet() ? (lua_Integer)api->net->send(to, &c) : 0);
@@ -1911,11 +1927,25 @@ static int n_set_status(lua_State* L)
 	return 0;
 }
 
+/* (1.5 beta 5) set_collision(true | false | nil) -> true: players collide (nil: the host's setting); collision() */
+static int n_set_collision(lua_State* L)
+{
+	const int on = lua_isnoneornil(L, 1) ? -1 : lua_toboolean(L, 1);
+	lua_pushboolean(L, hasNet() && SMS_API_HAS(api->net, set_collision) && api->net->set_collision(on));
+	return 1;
+}
+
+static int n_collision(lua_State* L)
+{
+	lua_pushboolean(L, hasNet() && SMS_API_HAS(api->net, collision) && api->net->collision());
+	return 1;
+}
+
 static const luaL_Reg kNet[] = {
 	{"role", n_role}, {"dedicated", n_dedicated}, {"slot", n_slot}, {"session", n_session},
 	{"players", n_players}, {"player", n_player}, {"send", n_send}, {"load_stage", n_load_stage},
 	{"set_mode", n_set_mode}, {"set_status", n_set_status}, {"set_look", n_set_look}, {"look", n_look},
-	{"set_respawn", n_set_respawn},
+	{"set_respawn", n_set_respawn}, {"set_collision", n_set_collision}, {"collision", n_collision},
 	{NULL, NULL},
 };
 
