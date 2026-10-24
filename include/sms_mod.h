@@ -1471,9 +1471,9 @@ typedef enum SmsCmdType {
    stops there; a server mod says what a hit does (SMS_CMD_SPLASH). */
 #define SMS_RULE_WATER_HITS 16u
 /* API 1.5 beta 7: FLUDD fills up only as the server says (SMS_PLAYER_WATER,
-   SMS_PLAYER_ADD_WATER, and the items it spawns: SMS_CMD_SPAWN's bottles):
-   not from the water around (sea, pools, fountains), the stage's own
-   bottles, fruit and 1-ups, or a barrel's hip drop. */
+   SMS_PLAYER_ADD_WATER): not from the water around (sea, pools, fountains),
+   bottles (a server's spawned ones too: their look and sparkle without the
+   water, which the server gives), fruit and 1-ups, or a barrel's hip drop. */
 #define SMS_RULE_NO_REFILL 32u
 
 /* SMS_CMD_BOUNDS's i[0] bits (API 1.5 beta 7) */
