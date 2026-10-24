@@ -1909,13 +1909,14 @@ static int n_send(lua_State* L)
 	static const char* const kTypes[] = {"", "banner", "notice", "status", "timer", "ready_go", "sound", "music",
 	                                     "warp", "hold", "mount", "watch", "actors", "stop_script", "stay", "object",
 	                                     "spawn", "player", "rules", "board", "hud", "marker", "screen", "shake",
-	                                     "rumble", "splash"};
+	                                     "rumble", "splash", "bounds"};
 	static const char* const kTimer[]  = {"hide", "show", "up", "down"};
 	static const char* const kActors[] = {"show", "hide", "kill"};
 	static const char* const kObject[] = {"place", "speed", "phase", "show", "hide", "scale", "turn", "move", "kill"};
-	static const char* const kPlayer[] = {"lose_life", "launch", "dismount", "health", "water", "nozzle"};
+	static const char* const kPlayer[] = {"lose_life", "launch", "dismount", "health", "water", "nozzle", "add_water",
+	                                      "water_use"};
 	static const char* const kScreen[] = {"clear", "fade_out", "fade_in", "flash"};
-	static const char* const kRules[]  = {"no_fludd", "no_damage", "no_pause", "no_pickups", "water_hits"};
+	static const char* const kRules[]  = {"no_fludd", "no_damage", "no_pause", "no_pickups", "water_hits", "no_refill"};
 	static const char* const kHud[]    = {"coins", "shines", "blue_coins", "health", "water", "lives", "red_coins"};
 	luaL_checktype(L, 2, LUA_TTABLE);
 	const uint32_t to = toMask(L, 1);
@@ -1924,7 +1925,7 @@ static int n_send(lua_State* L)
 	memset(&c, 0, sizeof c);
 	c.size = sizeof c;
 	c.type = (uint32_t)fieldchoice(L, 2, "type", kTypes, (int)(sizeof kTypes / sizeof kTypes[0]), 0);
-	if (!c.type || c.type > SMS_CMD_SPLASH)
+	if (!c.type || c.type > SMS_CMD_BOUNDS)
 		return luaL_error(L, "sms.net.send: no such command type");
 	c.flags    = (fieldbool(L, 2, "sticky") ? SMS_CMD_STICKY : 0) | (fieldbool(L, 2, "unstick") ? SMS_CMD_UNSTICK : 0);
 	c.delay_ms = (uint32_t)(fieldnum(L, 2, "delay", 0) * 1000.0f);
@@ -2010,7 +2011,7 @@ static int n_send(lua_State* L)
 		break;
 	case SMS_CMD_PLAYER: {
 		SmsVec3 dir = {0, 1, 0};
-		c.i[0] = fieldchoice(L, 2, "action", kPlayer, 6, SMS_PLAYER_LOSE_LIFE);
+		c.i[0] = fieldchoice(L, 2, "action", kPlayer, 8, SMS_PLAYER_LOSE_LIFE);
 		c.i[1] = (int32_t)fieldint(L, 2, "value", 0);
 		lua_getfield(L, 2, "direction");
 		tovec(L, -1, &dir);
@@ -2020,7 +2021,7 @@ static int n_send(lua_State* L)
 		break;
 	}
 	case SMS_CMD_RULES:
-		for (int k = 0; k < 5; k++)
+		for (int k = 0; k < 6; k++)
 			if (fieldbool(L, 2, kRules[k]))
 				c.i[0] |= 1 << k;
 		break;
@@ -2059,6 +2060,13 @@ static int n_send(lua_State* L)
 		c.i[2] = (int32_t)fieldint(L, 2, "full", 0);
 		c.i[3] = (fieldbool(L, 2, "down") ? (int32_t)SMS_SPLASH_DOWN : 0) | (fieldbool(L, 2, "quiet") ? (int32_t)SMS_SPLASH_QUIET : 0);
 		c.f[0] = at.x, c.f[1] = at.y, c.f[2] = at.z;
+		break;
+	case SMS_CMD_BOUNDS:
+		c.i[0]  = fieldbool(L, 2, "ring") ? (int32_t)SMS_BOUNDS_RING : 0;
+		c.i[1]  = (int32_t)fieldint(L, 2, "color", 0);
+		c.f[0]  = at.x, c.f[1] = at.y, c.f[2] = at.z;
+		c.f[3]  = fieldnum(L, 2, "radius", 0);
+		c.f2[0] = fieldnum(L, 2, "seconds", 0);
 		break;
 	default: break;
 	}

@@ -8,6 +8,14 @@ Pre-releases (`v1.5.0-beta.1`, `-beta.2`, ...) lead to a release and are listed 
 
 FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a randomizer's unlocks, a challenge's rules); and events for every kind of mod, in the manner of other games' modding APIs: what Mario does, what happens to the stage's actors, and what the game does around them.
 
+### 1.5.0-beta.7
+
+- `SMS_CMD_BOUNDS`: an arena's edge. Each game keeps its player within a radius of a point (across the ground), pushing them back in as they reach it; with `SMS_BOUNDS_RING` it draws the edge as a solid line on the ground and the water, in a colour of the mod's. `f2[0]` seconds glide the edge to a new radius, the same in every game: a closing arena.
+- `SMS_RULE_NO_REFILL`: FLUDD fills up only as the server says, not from the water around (sea, pools), bottles, fruit, 1-ups or a barrel's hip drop.
+- `SMS_PLAYER_ADD_WATER` (percent of a full tank added; less when negative) and `SMS_PLAYER_WATER_USE` (FLUDD's water used at this percent of its own rate, for the session).
+- In Lua: the `bounds` command (`position`, `radius`, `ring`, `color`, `seconds`), the `no_refill` rule, and the player actions `add_water` and `water_use` (`value`).
+- The lua mod is version 1.5.0-beta.7.
+
 ### 1.5.0-beta.6
 
 - `api->files` (`SmsFilesApi`; `SMS_API_HAS(api, files)`): a mod's own files beside the memory card, in `<card folder>-mods/<mod id>/`. Scope `SMS_FILES_MOD` is written at once; scopes 0..2 (and `SMS_FILES_CURRENT`) are save files A to C of the running game, kept as the card keeps them: written when the game saves the file being played, none for a new game, copied and erased with the file at file select.
