@@ -339,10 +339,12 @@ typedef enum SmsEventType {
 	   cursor moves. SmsEvEpisodeShine. */
 	SMS_EV_EPISODE_SHINE = 66,
 	/* (API 1.5 beta 7) A file chosen at file select is about to start (the
-	   game leaves for its first stage): every frame until it does, after
-	   SMS_EV_SAVE_FILE's LOADED or NEW and before SMS_EV_FILE_SELECTED.
-	   Cancellable: cancel and the file select waits as it is, this frame (a
-	   mod's own screen first: a game's options, a seed). SmsEvFileStarting. */
+	   game leaves for its first stage): after SMS_EV_SAVE_FILE's LOADED or
+	   NEW, again at each step of the file select (more than once a frame;
+	   time a wait with core->time) while a mod cancels it, then
+	   SMS_EV_FILE_SELECTED once. Cancellable: cancel and the file select
+	   waits as it is, this step (a mod's own screen first: a game's options,
+	   a seed). SmsEvFileStarting. */
 	SMS_EV_FILE_STARTING = 67,
 
 	/* core->event_id hands out ids from here for mods' own events. */
