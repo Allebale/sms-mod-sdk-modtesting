@@ -260,6 +260,7 @@ static const struct {
 	{"shine_setup", SMS_EV_SHINE_SETUP},
 	{"yoshi_egg", SMS_EV_YOSHI_EGG},
 	{"episode_shine", SMS_EV_EPISODE_SHINE},
+	{"file_starting", SMS_EV_FILE_STARTING},
 };
 
 static const char* const kLeaves[] = {"other", "way_out", "shine", "exit_area", "life_lost", "game_over", "warp", "file"};
@@ -737,6 +738,12 @@ static void pushEvent(lua_State* L, const SmsEvent* ev)
 		setstr(L, "kind", pick(kEggs, 3, p->kind));
 		setbool(L, "present", p->present);
 		setobj(L, "object", p->object);
+		break;
+	}
+	case SMS_EV_FILE_STARTING: {
+		const SmsEvFileStarting* p = (const SmsEvFileStarting*)d;
+		setint(L, "file", p->file);
+		setbool(L, "is_new", p->is_new);
 		break;
 	}
 	case SMS_EV_EPISODE_SHINE: {

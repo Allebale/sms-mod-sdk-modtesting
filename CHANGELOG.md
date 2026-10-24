@@ -15,6 +15,8 @@ FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a rando
 - `SMS_PLAYER_ADD_WATER` (percent of a full tank added; less when negative), `SMS_PLAYER_WATER_USE` (FLUDD's water used at this percent of its own rate, for the session) and `SMS_PLAYER_FLUDD` (FLUDD on the player's back or off it).
 - `SMS_CMD_SPLASH`: the flush lasts a moment (0.8 seconds; `f[3]` seconds of the mod's), not four: in a water fight a long one left everyone pink. Lua `flush`.
 - In Lua: the `bounds` command (`position`, `radius`, `ring`, `color`, `seconds`), the `no_refill` rule, and the player actions `add_water`, `water_use` and `fludd` (`value`).
+- `SMS_EV_FILE_STARTING` (`SmsEvFileStarting`: `file`, `is_new`): a file chosen at file select is about to start, every frame until the game leaves for its first stage. Cancellable: the file select waits as it is that frame, so a mod's own screen (a game's options, a seed) comes first. In Lua: `file_starting` (return `true` to wait).
+- `SMS_EV_FILE_SELECTED` comes once as a file starts; it came again on every frame of the fade out, and a handler that changed where the game starts changed it again each time.
 - The lua mod is version 1.5.0-beta.7.
 
 ### 1.5.0-beta.6
