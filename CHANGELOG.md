@@ -13,6 +13,7 @@ FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a rando
 - `SMS_CMD_BOUNDS`: an arena's edge. Each game keeps its player within a radius of a point (across the ground), pushing them back in as they reach it; with `SMS_BOUNDS_RING` it draws the edge as a solid line on the ground and the water, in a colour of the mod's. `f2[0]` seconds glide the edge to a new radius, the same in every game: a closing arena.
 - `SMS_RULE_NO_REFILL`: FLUDD fills up only as the server says, not from the water around (sea, pools), bottles, fruit, 1-ups or a barrel's hip drop.
 - `SMS_PLAYER_ADD_WATER` (percent of a full tank added; less when negative), `SMS_PLAYER_WATER_USE` (FLUDD's water used at this percent of its own rate, for the session) and `SMS_PLAYER_FLUDD` (FLUDD on the player's back or off it).
+- `SMS_CMD_SPLASH`: the flush lasts a moment (0.8 seconds; `f[3]` seconds of the mod's), not four: in a water fight a long one left everyone pink. Lua `flush`.
 - In Lua: the `bounds` command (`position`, `radius`, `ring`, `color`, `seconds`), the `no_refill` rule, and the player actions `add_water`, `water_use` and `fludd` (`value`).
 - The lua mod is version 1.5.0-beta.7.
 

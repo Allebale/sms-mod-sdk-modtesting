@@ -2060,6 +2060,7 @@ static int n_send(lua_State* L)
 		c.i[2] = (int32_t)fieldint(L, 2, "full", 0);
 		c.i[3] = (fieldbool(L, 2, "down") ? (int32_t)SMS_SPLASH_DOWN : 0) | (fieldbool(L, 2, "quiet") ? (int32_t)SMS_SPLASH_QUIET : 0);
 		c.f[0] = at.x, c.f[1] = at.y, c.f[2] = at.z;
+		c.f[3] = fieldnum(L, 2, "flush", 0);
 		break;
 	case SMS_CMD_BOUNDS:
 		c.i[0]  = fieldbool(L, 2, "ring") ? (int32_t)SMS_BOUNDS_RING : 0;

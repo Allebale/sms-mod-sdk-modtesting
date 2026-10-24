@@ -1391,7 +1391,8 @@ typedef enum SmsCmdType {
 	SMS_CMD_RUMBLE = 24,
 	/* API 1.5 beta 5. Player i[0] was splashed, as Shadow Mario is when
 	   FLUDD's water hits him: a splash at f[0..2] with his hit sound, the
-	   player's model flushed for a few seconds and, when i[2] > 0, his water
+	   player's model flushed for a moment (API 1.5 beta 7: f[3] seconds;
+	   0 about 0.8; beta 5 and 6 games: 4) and, when i[2] > 0, his water
 	   meter over their head, i[1] of i[2] full, for twenty seconds. i[3]
 	   SMS_SPLASH_* bits. Send it to everyone: each game shows it on its own
 	   copy of that player (the player's own game on its Mario). */
