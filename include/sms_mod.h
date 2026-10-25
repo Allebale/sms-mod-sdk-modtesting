@@ -1095,12 +1095,17 @@ typedef struct SmsPlayerApi {
 	   where it looks while walking sideways. 0 gives him his own aim back;
 	   so does the mod unloading. 0 when there is no Mario. */
 	int (*set_aim)(int on, float yaw, float pitch);
-	/* API 1.5 beta 8. 1 leaves Mario's head out (his face, hair and cap)
-	   while the rest of him is drawn: a first-person camera, where the
-	   player sees his body looking down. 0 draws it again; so does the mod
-	   unloading. 0 when there is no Mario. */
-	int (*set_head_hidden)(int hidden);
+	/* API 1.5 beta 8. Parts of Mario left out while the rest of him is
+	   drawn (SMS_PLAYER_PART_*, ORed; 0 draws all of him again): a
+	   first-person camera, where the player sees his body looking down.
+	   Each mod's parts are its own and go when it unloads; the game leaves
+	   out every mod's. 0 when there is no Mario. */
+	int (*set_hidden_parts)(uint32_t parts);
 } SmsPlayerApi;
+
+/* player->set_hidden_parts (API 1.5 beta 8) */
+#define SMS_PLAYER_PART_HEAD  1u /* his head: face, hair and cap */
+#define SMS_PLAYER_PART_FLUDD 2u /* FLUDD (it still sprays) */
 
 typedef struct SmsCamera {
 	uint32_t size;
