@@ -1326,6 +1326,45 @@ static int l_hud_hidden(lua_State* L)
 	return 1;
 }
 
+/* The reflection options (SMS_REFLECT_*), by name, in their order */
+static const char* const kReflectNames[] = {
+	"puddle_lifetime", "puddles", "distance", "water", "beat_mirrors", "level", "view_angle",
+	"puddle_ripples", "water_ripples", "sun_glints", "water_depth", "blur", "footprints",
+	"show_mario", "show_characters", "show_enemies", "show_items", "show_objects", "by_surface",
+	"strength_stone", "strength_metal", "strength_clay", "strength_wood", "strength_sand",
+	"strength_grass", "strength_canvas", "strength_wet", "strength_water", "strength_wet_ground"};
+
+static int reflectOption(lua_State* L, int arg)
+{
+	const char* name = luaL_checkstring(L, arg);
+	for (int i = 0; i < (int)(sizeof kReflectNames / sizeof kReflectNames[0]); i++)
+		if (!strcmp(name, kReflectNames[i]))
+			return i;
+	return luaL_error(L, "no reflection option '%s'", name);
+}
+
+/* sms.set_reflection(name, value): one of the port's puddle and water
+   options (API 1.5 beta 8); returns whether the game has it */
+static int l_set_reflection(lua_State* L)
+{
+	const int option = reflectOption(L, 1);
+	const int value  = lua_isboolean(L, 2) ? lua_toboolean(L, 2) : (int)luaL_checkinteger(L, 2);
+	lua_pushboolean(L, SMS_API_HAS(api, reflections) && api->reflections->set(MOD(L), option, value));
+	return 1;
+}
+
+/* sms.reflection(name): its value now, or nil if the game has none */
+static int l_reflection(lua_State* L)
+{
+	const int option = reflectOption(L, 1);
+	const int value  = SMS_API_HAS(api, reflections) ? api->reflections->get(option) : -1;
+	if (value < 0)
+		lua_pushnil(L);
+	else
+		lua_pushinteger(L, value);
+	return 1;
+}
+
 static int l_set_fludd(lua_State* L)
 {
 	lua_pushboolean(L, SMS_API_HAS(api->player, set_fludd) && api->player->set_fludd(lua_toboolean(L, 1)));
@@ -2321,6 +2360,7 @@ static const luaL_Reg kSms[] = {
 	{"mario", l_mario}, {"set_mario", l_set_mario}, {"set_status", l_set_status}, {"camera", l_camera},
 	{"set_nozzle", l_set_nozzle}, {"set_fludd", l_set_fludd}, {"set_outfit", l_set_outfit},
 	{"set_hud_hidden", l_set_hud_hidden}, {"hud_hidden", l_hud_hidden},
+	{"set_reflection", l_set_reflection}, {"reflection", l_reflection},
 	{"to_canvas", l_to_canvas}, {"play_sound", l_play_sound},
 	{"pad", l_pad}, {"key_down", l_key_down}, {"key_pressed", l_key_pressed}, {"key", l_key},
 	{"key_name", l_key_name}, {"bind_key", l_bind_key}, {"capture", l_capture}, {"captured_by", l_captured_by},

@@ -506,6 +506,39 @@ static int onSaveFile(SmsMod* mod, SmsEvent* ev, void* user)
 
 `core->data_dir` is still the place for what is not the player's progress (caches, logs); `config` keeps settings there.
 
+### reflections
+
+API 1.5 beta 8 (`SMS_API_HAS(api, reflections)`): the port's puddle and water effects. The game draws them; a mod (a graphics mod, a "puddles" mod with its own settings in the Mods menu) chooses how. Each option is a number, `SMS_REFLECT_*`; every one starts as the original game has it, and goes back so when the mod that set it unloads.
+
+| Function | |
+| --- | --- |
+| `set(mod, option, value)` | sets it, clamped to its range; 0 for an option this game does not have |
+| `get(option)` | its value now, or -1 |
+| `range(option, &min, &max, &original)` | its range and the original game's value (each pointer may be NULL); 0 for an option this game does not have |
+
+| Option | Values (the original game's first) |
+| --- | --- |
+| `PUDDLE_LIFETIME` | 1 to 8: FLUDD's puddles last as many times longer. The goop under a puddle and the object it sits on react as the game has them, over its longer life |
+| `PUDDLES` | 0 Mario, FLUDD and Yoshi only; 1 characters and objects too (each gets the game's own kind of reflection copy as the area loads). From the next area |
+| `DISTANCE` | 1000, from 500 to 5000: the disc around Mario that reflections are drawn over, fading at its edge |
+| `WATER` | 0; 1 the sea, lakes, pools, fountains, streams and wet ground reflect as puddles do |
+| `BEAT_MIRRORS` | 0; 1 in a real mirror's area (the hotel's, Pinna Park's), a FLUDD puddle near Mario reflects, not the mirror |
+| `LEVEL` | 0; 1 the stage itself (ground, buildings, sky) in puddles and water. From the next area |
+| `VIEW_ANGLE` | 0; 1 subtle, 2 realistic: stronger looking across, weaker looking down |
+| `PUDDLE_RIPPLES`, `WATER_RIPPLES` | 0; 1 gentle, 2 strong |
+| `SUN_GLINTS` | 0; 1 subtle, 2 bright. None indoors |
+| `WATER_DEPTH` | 0; 1 subtle, 2 strong: water darkens toward blue-green over deep ground |
+| `BLUR` | 0 sharp, to 1000 (hundredths: 125 is 1.25) |
+| `FOOTPRINTS` | 0; 1 after a puddle, Mario's next steps leave damp prints that dry away |
+| `SHOW_MARIO`, `SHOW_CHARACTERS`, `SHOW_ENEMIES`, `SHOW_ITEMS`, `SHOW_OBJECTS` | what is reflected: 1, 0, 0, 0, 0. All but Mario need `PUDDLES` 1 |
+| `BY_SURFACE` | 0; 1 each puddle as strong as its floor's `STRENGTH_*` |
+| `STRENGTH_STONE` ... `STRENGTH_WET_GROUND` | tenths of a percent of the game's strength, 0 to 1000 (stone 300, metal 500, clay 400, wood 330, sand 50, grass 60, canvas 100, wet floors 550, water 500, wet ground 450) |
+
+```c
+api->reflections->set(mod, SMS_REFLECT_WATER, 1);
+api->reflections->set(mod, SMS_REFLECT_BLUR, 125);
+```
+
 ### draw, input, config, audio
 
 See [Drawing](#drawing), [Input](#input), [Settings](#settings-and-the-mods-menu).
@@ -767,6 +800,7 @@ Objects are light userdata, for `sms.object_name`, `sms.object_position` and `sm
 | `sms.object_type(o)`, `sms.object_health(o)` | (1.5) an object's actor type; an enemy's health and its most (`local hp, max = sms.object_health(o)`; nothing when it has none) |
 | `sms.set_object_color(o, which, colour)` | (1.5 beta 6) one of an object's model's colours: `which` `"material"`, `"tev0"`, `"tev1"` or `"tev2"` (see `game->object_set_color`) |
 | `sms.files_read(name [, file])`, `sms.files_write(name, data [, file])`, `sms.files_remove(name [, file])`, `sms.files_dir()` | (1.5 beta 6) the mod's [files](#files): `file` nil the mod's own, `0`..`2` a save file, `"current"` the one played. `files_read` gives the bytes as a string (or nil); `files_write` whether it was written (or kept for the save) |
+| `sms.set_reflection(name, value)`, `sms.reflection(name)` | (1.5 beta 8) the port's puddle and water options ([reflections](#reflections)), by name in lower case: `"water"`, `"blur"`, `"show_enemies"`, `"strength_wet_ground"`...; a boolean is 1 or 0. Returns whether the game has it; `sms.reflection` is its value, or nil |
 | `sms.set_hud_hidden{ coins = true, health = true, ... }`, `sms.hud_hidden()` | (1.5 beta 3) hide parts of the game's own HUD (`coins`, `shines`, `blue_coins`, `health`, `water`, `lives`, `red_coins`, or `all = true`; an empty table shows them again); returns whether the game can. `sms.hud_hidden()` is a table of what is hidden now |
 | `sms.world.kind(area)`, `sms.world.of(area)` | (1.4) what an area is (`"airstrip"`, `"plaza"`, `"world"`, `"world_part"`, `"secret"`, `"final"`, `"title"`, `"none"`); its world, or `nil` ([world](#world)) |
 | `sms.world.episodes(area)`, `sms.world.episode_shine(area, ep)`, `sms.world.episode_name(area, ep)`, `sms.world.next_episode(area)`, `sms.world.shine_episode(shine)` | its world's episodes: how many; an episode's Shine and name (`nil`: none); the one the episode select offers; a Shine's episode and world (`nil`: not an episode's) |

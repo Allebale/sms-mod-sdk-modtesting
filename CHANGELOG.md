@@ -8,6 +8,12 @@ Pre-releases (`v1.5.0-beta.1`, `-beta.2`, ...) lead to a release and are listed 
 
 FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a randomizer's unlocks, a challenge's rules); and events for every kind of mod, in the manner of other games' modding APIs: what Mario does, what happens to the stage's actors, and what the game does around them.
 
+### 1.5.0-beta.8
+
+- `api->reflections` (`SmsReflectionsApi`; `SMS_API_HAS(api, reflections)`): the port's puddle and water effects, set by a mod: how long FLUDD's puddles last, characters, objects and the stage itself in puddles and water, the stage's water reflecting, ripples, sun glints, blur, deep water, wet footprints and each surface's strength (`SMS_REFLECT_*`). Each starts as the original game has it and goes back so when the mod that set it unloads.
+- In Lua: `sms.set_reflection(name, value)` and `sms.reflection(name)`.
+- The lua mod is version 1.5.0-beta.8.
+
 ### 1.5.0-beta.7
 
 - `SMS_CMD_BOUNDS`: an arena's edge. Each game keeps its player within a radius of a point (across the ground), pushing them back in as they reach it; with `SMS_BOUNDS_RING` it draws the edge as a solid line on the ground and the water, in a colour of the mod's. `f2[0]` seconds glide the edge to a new radius, the same in every game: a closing arena.
