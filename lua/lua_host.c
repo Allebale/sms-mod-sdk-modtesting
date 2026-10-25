@@ -1332,7 +1332,8 @@ static const char* const kReflectNames[] = {
 	"puddle_ripples", "water_ripples", "sun_glints", "water_depth", "blur", "footprints",
 	"show_mario", "show_characters", "show_enemies", "show_items", "show_objects", "by_surface",
 	"strength_stone", "strength_metal", "strength_clay", "strength_wood", "strength_sand",
-	"strength_grass", "strength_canvas", "strength_wet", "strength_water", "strength_wet_ground"};
+	"strength_grass", "strength_canvas", "strength_wet", "strength_water", "strength_wet_ground",
+	"wet_mario"};
 
 static int reflectOption(lua_State* L, int arg)
 {

@@ -10,7 +10,7 @@ FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a rando
 
 ### 1.5.0-beta.8
 
-- `api->reflections` (`SmsReflectionsApi`; `SMS_API_HAS(api, reflections)`): the port's puddle and water effects, set by a mod: how long FLUDD's puddles last, characters, objects and the stage itself in puddles and water, the stage's water reflecting, ripples, sun glints, blur, deep water, wet footprints and each surface's strength (`SMS_REFLECT_*`). Each starts as the original game has it and goes back so when the mod that set it unloads.
+- `api->reflections` (`SmsReflectionsApi`; `SMS_API_HAS(api, reflections)`): the port's puddle and water effects, set by a mod: how long FLUDD's puddles last, characters, objects and the stage itself in puddles and water, the stage's water reflecting, ripples, sun glints, blur, deep water, wet footprints and each surface's strength, and a wet Mario (`SMS_REFLECT_*`). Each starts as the original game has it and goes back so when the mod that set it unloads.
 - In Lua: `sms.set_reflection(name, value)` and `sms.reflection(name)`.
 - The lua mod is version 1.5.0-beta.8.
 
