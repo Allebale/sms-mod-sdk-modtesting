@@ -1088,12 +1088,13 @@ typedef struct SmsPlayerApi {
 	   +Z, 90 faces +X) at once, his model too: FLUDD sprays that way. A
 	   first-person camera's aim. 0 when there is no Mario. */
 	int (*set_yaw)(float degrees);
-	/* API 1.5 beta 8. While `on`, Mario's body and FLUDD face `degrees`
-	   whichever way he moves (he still walks where the stick says), so FLUDD
-	   sprays that way: a first-person camera's aim, strafing while spraying.
-	   0 gives him his own facing back; so does the mod unloading. 0 when
-	   there is no Mario. */
-	int (*set_aim)(int on, float degrees);
+	/* API 1.5 beta 8. While `on`, Mario's body and FLUDD face `yaw` degrees
+	   (as set_yaw) whichever way he moves (he still walks where the stick
+	   says), and FLUDD tilts `pitch` degrees up (negative down) whatever his
+	   stance, so FLUDD sprays that way: a first-person camera's aim, spraying
+	   where it looks while walking sideways. 0 gives him his own aim back;
+	   so does the mod unloading. 0 when there is no Mario. */
+	int (*set_aim)(int on, float yaw, float pitch);
 } SmsPlayerApi;
 
 typedef struct SmsCamera {

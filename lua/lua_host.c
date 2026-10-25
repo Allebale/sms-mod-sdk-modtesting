@@ -1334,13 +1334,15 @@ static int l_set_yaw(lua_State* L)
 	return 1;
 }
 
-/* sms.set_aim(degrees) turns Mario's body and FLUDD that way whichever way he
-   moves; sms.set_aim(nil) gives his own facing back (API 1.5 beta 8) */
+/* sms.set_aim(yaw [, pitch]) turns Mario's body and FLUDD that way (pitch
+   degrees up) whichever way he moves; sms.set_aim(nil) gives his own aim
+   back (API 1.5 beta 8) */
 static int l_set_aim(lua_State* L)
 {
-	const int on    = !lua_isnoneornil(L, 1);
-	const float deg = on ? (float)luaL_checknumber(L, 1) : 0.0f;
-	lua_pushboolean(L, SMS_API_HAS(api->player, set_aim) && api->player->set_aim(on, deg));
+	const int on      = !lua_isnoneornil(L, 1);
+	const float yaw   = on ? (float)luaL_checknumber(L, 1) : 0.0f;
+	const float pitch = on ? (float)luaL_optnumber(L, 2, 0.0) : 0.0f;
+	lua_pushboolean(L, SMS_API_HAS(api->player, set_aim) && api->player->set_aim(on, yaw, pitch));
 	return 1;
 }
 
