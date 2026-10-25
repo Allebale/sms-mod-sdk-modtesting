@@ -424,6 +424,7 @@ API 1.5 (`SMS_API_HAS(api->player, set_outfit)`):
 - `set_outfit(shirt, sunglasses, helmet)` puts on (1) or takes off (0) the aloha shirt, the sunglasses and the diving helmet, each -1 to leave it as it is. The game still changes them its own way (its events; the helmet in the dive stages).
 - (1.5 beta 8, `SMS_API_HAS(api->player, set_yaw)`) `set_yaw(degrees)` turns Mario to face that way at once (0 faces +Z, 90 faces +X, as `SmsPlayer.yaw`), his model too, so FLUDD sprays that way: a first-person camera keeps him facing its aim while he sprays. The game turns him its own way again as he moves.
 - (1.5 beta 8) `set_aim(on, yaw, pitch)`: while `on`, his body and FLUDD face `yaw` whichever way he walks (the stick still moves him), and FLUDD tilts `pitch` degrees up (negative down) whatever his stance, so FLUDD sprays that way: spraying where a first-person view looks, walking sideways too. `set_aim(0, 0, 0)` gives him his own aim back; a mod that unloads drops its aim.
+- (1.5 beta 8) `set_head_hidden(hidden)`: 1 leaves his head out (face, hair, cap) while the rest of him, FLUDD too, is drawn: a first-person view that shows his body looking down. `SMS_EV_HIDE_PLAYER_MODEL` still leaves all of him out. A mod that unloads shows the head again.
 
 ### camera
 
@@ -753,7 +754,7 @@ Objects are light userdata, for `sms.object_name`, `sms.object_position` and `sm
 | `sms.mario()` | `nil` outside stages, or `{position, velocity, forward_speed, yaw, health, max_health, water, max_water, has_fludd, nozzle, status, status_timer, on_ground, in_water, on_yoshi, floor, object}`, and (1.5) `current_nozzle, shirt, sunglasses, helmet` |
 | `sms.set_mario{position =, velocity =, forward_speed =, health =, water =}` | change what is given |
 | `sms.set_status(status [, arg])` | ask for a [status](#mario-statuses) |
-| `sms.set_yaw(degrees)`, `sms.set_aim(degrees)` | (1.5 beta 8) Mario faces that way at once; `sms.set_aim(yaw, pitch)`: his body and FLUDD aim that way whichever way he walks (`sms.set_aim(nil)` gives his aim back); each returns whether it was done |
+| `sms.set_yaw(degrees)`, `sms.set_aim(degrees)`, `sms.set_head_hidden(hidden)` | (1.5 beta 8) Mario faces that way at once; `sms.set_aim(yaw, pitch)`: his body and FLUDD aim that way whichever way he walks (`sms.set_aim(nil)` gives his aim back); each returns whether it was done |
 | `sms.set_nozzle(nozzle [, animate])`, `sms.set_fludd(has)`, `sms.set_outfit{shirt =, sunglasses =, helmet =}` | (1.5) FLUDD's [nozzle](#nozzles) (`animate` true unless given), FLUDD or not, what he wears (a piece not given stays as it is; `sms.set_outfit(shirt, sunglasses, helmet)` too, `nil` for as it is); each returns whether it was done |
 | `sms.camera()`, `sms.to_canvas(pos)` | `{position, target, up, fovy, aspect, near, far}`; a world point's `x, y, depth` on the canvas, or nothing behind the camera |
 | `sms.play_sound(id)` | a system sound: `sms.SOUND_COIN`, `SOUND_NEWS`, `SOUND_SHINE`, `SOUND_DAMAGE`, `SOUND_HEAL`, `SOUND_APPEAR`, `SOUND_CURSOR`, `SOUND_DECIDE`, `SOUND_CANCEL`, or any `MSD_SE_SY_*` number |
