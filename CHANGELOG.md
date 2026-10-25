@@ -12,6 +12,9 @@ FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a rando
 
 - `api->reflections` (`SmsReflectionsApi`; `SMS_API_HAS(api, reflections)`): the port's puddle and water effects, set by a mod: how long FLUDD's puddles last, characters, objects and the stage itself in puddles and water, the stage's water reflecting, ripples, sun glints, blur, deep water, wet footprints and each surface's strength (`SMS_REFLECT_*`). Each starts as the original game has it and goes back so when the mod that set it unloads.
 - In Lua: `sms.set_reflection(name, value)` and `sms.reflection(name)`.
+- `player->set_yaw(degrees)`: Mario turns to face a direction at once, his model too, so FLUDD sprays that way (a first-person camera's aim). In Lua: `sms.set_yaw(degrees)`.
+- `player->set_aim(on, yaw, pitch)`: while on, Mario's body and FLUDD face a direction whichever way he walks, and FLUDD tilts up or down, whatever his stance, so he can spray where a first-person view looks while walking sideways. Dropped when the mod unloads. In Lua: `sms.set_aim(yaw, pitch)`, `sms.set_aim(nil)`.
+- `player->set_hidden_parts(parts)`: parts of Mario left out while the rest of him is drawn: `SMS_PLAYER_PART_HEAD` (face, hair, cap), `SMS_PLAYER_PART_FLUDD` (it still sprays). For a first-person view that shows his body looking down. Each mod's parts go when it unloads. In Lua: `sms.set_hidden_parts{head = true, fludd = true}`.
 - The lua mod is version 1.5.0-beta.8.
 
 ### 1.5.0-beta.7
