@@ -42,7 +42,7 @@
 #define SMS_MOD_API_MAJOR 1
 #define SMS_MOD_API_MINOR 5
 /* 0 in a release; N in the pre-release vMAJOR.MINOR.0-beta.N (API 1.5) */
-#define SMS_MOD_API_PRERELEASE 7
+#define SMS_MOD_API_PRERELEASE 8
 #define SMS_MOD_API_VERSION ((uint32_t)SMS_MOD_API_MAJOR << 16 | SMS_MOD_API_MINOR)
 
 #if defined(_WIN32)
@@ -1084,6 +1084,10 @@ typedef struct SmsPlayerApi {
 	/* API 1.5. What he wears: the aloha shirt, the sunglasses, the diving
 	   helmet; each 1 on, 0 off, -1 as it is. 0 when there is no Mario. */
 	int (*set_outfit)(int shirt, int sunglasses, int helmet);
+	/* API 1.5 beta 8. Mario turns to face `degrees` (SmsPlayer.yaw's: 0 faces
+	   +Z, 90 faces +X) at once, his model too: FLUDD sprays that way. A
+	   first-person camera's aim. 0 when there is no Mario. */
+	int (*set_yaw)(float degrees);
 } SmsPlayerApi;
 
 typedef struct SmsCamera {

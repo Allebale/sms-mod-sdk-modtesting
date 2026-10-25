@@ -8,6 +8,11 @@ Pre-releases (`v1.5.0-beta.1`, `-beta.2`, ...) lead to a release and are listed 
 
 FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a randomizer's unlocks, a challenge's rules); and events for every kind of mod, in the manner of other games' modding APIs: what Mario does, what happens to the stage's actors, and what the game does around them.
 
+### 1.5.0-beta.8
+
+- `player->set_yaw(degrees)`: Mario turns to face a direction at once, his model too, so FLUDD sprays that way (a first-person camera's aim). In Lua: `sms.set_yaw(degrees)`.
+- The lua mod is version 1.5.0-beta.8.
+
 ### 1.5.0-beta.7
 
 - `SMS_CMD_BOUNDS`: an arena's edge. Each game keeps its player within a radius of a point (across the ground), pushing them back in as they reach it; with `SMS_BOUNDS_RING` it draws the edge as a solid line on the ground and the water, in a colour of the mod's. `f2[0]` seconds glide the edge to a new radius, the same in every game: a closing arena.

@@ -422,6 +422,7 @@ API 1.5 (`SMS_API_HAS(api->player, set_outfit)`):
 - `set_nozzle(nozzle, animate)` switches FLUDD to a nozzle as the game does (it becomes the second nozzle; 0, the spray, leaves the second one as it is). Pass `animate` 1, as the game does: 0 changes the nozzle without putting the nozzle button's swap in step with it. `SMS_EV_PLAYER_NOZZLE` handlers hear of it as `SMS_NOZZLE_SWITCH` and may refuse it, the calling mod's too. Returns 1 when FLUDD has that nozzle out then; 0 with no FLUDD, on Yoshi, or a number that is not a nozzle (3, Yoshi's, comes only with him).
 - `set_fludd(has)` gives Mario FLUDD or takes it away, as the stages without FLUDD do (no spray, no nozzle, FLUDD not drawn). The nozzles stay as they were for when he has it again.
 - `set_outfit(shirt, sunglasses, helmet)` puts on (1) or takes off (0) the aloha shirt, the sunglasses and the diving helmet, each -1 to leave it as it is. The game still changes them its own way (its events; the helmet in the dive stages).
+- (1.5 beta 8, `SMS_API_HAS(api->player, set_yaw)`) `set_yaw(degrees)` turns Mario to face that way at once (0 faces +Z, 90 faces +X, as `SmsPlayer.yaw`), his model too, so FLUDD sprays that way: a first-person camera keeps him facing its aim while he sprays. The game turns him its own way again as he moves.
 
 ### camera
 
@@ -751,6 +752,7 @@ Objects are light userdata, for `sms.object_name`, `sms.object_position` and `sm
 | `sms.mario()` | `nil` outside stages, or `{position, velocity, forward_speed, yaw, health, max_health, water, max_water, has_fludd, nozzle, status, status_timer, on_ground, in_water, on_yoshi, floor, object}`, and (1.5) `current_nozzle, shirt, sunglasses, helmet` |
 | `sms.set_mario{position =, velocity =, forward_speed =, health =, water =}` | change what is given |
 | `sms.set_status(status [, arg])` | ask for a [status](#mario-statuses) |
+| `sms.set_yaw(degrees)` | (1.5 beta 8) Mario faces that way at once; returns whether it was done |
 | `sms.set_nozzle(nozzle [, animate])`, `sms.set_fludd(has)`, `sms.set_outfit{shirt =, sunglasses =, helmet =}` | (1.5) FLUDD's [nozzle](#nozzles) (`animate` true unless given), FLUDD or not, what he wears (a piece not given stays as it is; `sms.set_outfit(shirt, sunglasses, helmet)` too, `nil` for as it is); each returns whether it was done |
 | `sms.camera()`, `sms.to_canvas(pos)` | `{position, target, up, fovy, aspect, near, far}`; a world point's `x, y, depth` on the canvas, or nothing behind the camera |
 | `sms.play_sound(id)` | a system sound: `sms.SOUND_COIN`, `SOUND_NEWS`, `SOUND_SHINE`, `SOUND_DAMAGE`, `SOUND_HEAL`, `SOUND_APPEAR`, `SOUND_CURSOR`, `SOUND_DECIDE`, `SOUND_CANCEL`, or any `MSD_SE_SY_*` number |
