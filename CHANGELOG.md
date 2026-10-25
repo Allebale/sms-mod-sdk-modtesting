@@ -11,6 +11,7 @@ FLUDD's nozzles and Mario's outfit, for mods that decide what Mario has (a rando
 ### 1.5.0-beta.8
 
 - `player->set_yaw(degrees)`: Mario turns to face a direction at once, his model too, so FLUDD sprays that way (a first-person camera's aim). In Lua: `sms.set_yaw(degrees)`.
+- `player->set_aim(on, degrees)`: while on, Mario's body and FLUDD face a direction whichever way he walks, so he can spray ahead while walking sideways. Dropped when the mod unloads. In Lua: `sms.set_aim(degrees)`, `sms.set_aim(nil)`.
 - The lua mod is version 1.5.0-beta.8.
 
 ### 1.5.0-beta.7

@@ -1334,6 +1334,16 @@ static int l_set_yaw(lua_State* L)
 	return 1;
 }
 
+/* sms.set_aim(degrees) turns Mario's body and FLUDD that way whichever way he
+   moves; sms.set_aim(nil) gives his own facing back (API 1.5 beta 8) */
+static int l_set_aim(lua_State* L)
+{
+	const int on    = !lua_isnoneornil(L, 1);
+	const float deg = on ? (float)luaL_checknumber(L, 1) : 0.0f;
+	lua_pushboolean(L, SMS_API_HAS(api->player, set_aim) && api->player->set_aim(on, deg));
+	return 1;
+}
+
 static int l_set_fludd(lua_State* L)
 {
 	lua_pushboolean(L, SMS_API_HAS(api->player, set_fludd) && api->player->set_fludd(lua_toboolean(L, 1)));
@@ -2327,7 +2337,7 @@ static const luaL_Reg kSms[] = {
 	{"area_name", l_area_name}, {"find_object", l_find_object}, {"object_name", l_object_name},
 	{"object_position", l_object_position}, {"set_object_position", l_set_object_position},
 	{"mario", l_mario}, {"set_mario", l_set_mario}, {"set_status", l_set_status}, {"camera", l_camera},
-	{"set_nozzle", l_set_nozzle}, {"set_fludd", l_set_fludd}, {"set_outfit", l_set_outfit}, {"set_yaw", l_set_yaw},
+	{"set_nozzle", l_set_nozzle}, {"set_fludd", l_set_fludd}, {"set_outfit", l_set_outfit}, {"set_yaw", l_set_yaw}, {"set_aim", l_set_aim},
 	{"set_hud_hidden", l_set_hud_hidden}, {"hud_hidden", l_hud_hidden},
 	{"to_canvas", l_to_canvas}, {"play_sound", l_play_sound},
 	{"pad", l_pad}, {"key_down", l_key_down}, {"key_pressed", l_key_pressed}, {"key", l_key},
