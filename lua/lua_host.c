@@ -1326,6 +1326,42 @@ static int l_hud_hidden(lua_State* L)
 	return 1;
 }
 
+/* sms.set_yaw(degrees): Mario faces that way at once (API 1.5 beta 8) */
+static int l_set_yaw(lua_State* L)
+{
+	const float deg = (float)luaL_checknumber(L, 1);
+	lua_pushboolean(L, SMS_API_HAS(api->player, set_yaw) && api->player->set_yaw(deg));
+	return 1;
+}
+
+/* sms.set_aim(yaw [, pitch]) turns Mario's body and FLUDD that way (pitch
+   degrees up) whichever way he moves; sms.set_aim(nil) gives his own aim
+   back (API 1.5 beta 8) */
+static int l_set_aim(lua_State* L)
+{
+	const int on      = !lua_isnoneornil(L, 1);
+	const float yaw   = on ? (float)luaL_checknumber(L, 1) : 0.0f;
+	const float pitch = on ? (float)luaL_optnumber(L, 2, 0.0) : 0.0f;
+	lua_pushboolean(L, SMS_API_HAS(api->player, set_aim) && api->player->set_aim(on, yaw, pitch));
+	return 1;
+}
+
+/* sms.set_hidden_parts{ head = true, fludd = true }: parts of Mario left
+   out, the rest of him drawn; an empty table (or none) draws all of him
+   (API 1.5 beta 8). Returns whether the game can. */
+static int l_set_hidden_parts(lua_State* L)
+{
+	uint32_t parts = 0;
+	if (lua_istable(L, 1)) {
+		if (fieldbool(L, 1, "head"))
+			parts |= SMS_PLAYER_PART_HEAD;
+		if (fieldbool(L, 1, "fludd"))
+			parts |= SMS_PLAYER_PART_FLUDD;
+	}
+	lua_pushboolean(L, SMS_API_HAS(api->player, set_hidden_parts) && api->player->set_hidden_parts(parts));
+	return 1;
+}
+
 static int l_set_fludd(lua_State* L)
 {
 	lua_pushboolean(L, SMS_API_HAS(api->player, set_fludd) && api->player->set_fludd(lua_toboolean(L, 1)));
@@ -2319,7 +2355,7 @@ static const luaL_Reg kSms[] = {
 	{"area_name", l_area_name}, {"find_object", l_find_object}, {"object_name", l_object_name},
 	{"object_position", l_object_position}, {"set_object_position", l_set_object_position},
 	{"mario", l_mario}, {"set_mario", l_set_mario}, {"set_status", l_set_status}, {"camera", l_camera},
-	{"set_nozzle", l_set_nozzle}, {"set_fludd", l_set_fludd}, {"set_outfit", l_set_outfit},
+	{"set_nozzle", l_set_nozzle}, {"set_fludd", l_set_fludd}, {"set_outfit", l_set_outfit}, {"set_yaw", l_set_yaw}, {"set_aim", l_set_aim}, {"set_hidden_parts", l_set_hidden_parts},
 	{"set_hud_hidden", l_set_hud_hidden}, {"hud_hidden", l_hud_hidden},
 	{"to_canvas", l_to_canvas}, {"play_sound", l_play_sound},
 	{"pad", l_pad}, {"key_down", l_key_down}, {"key_pressed", l_key_pressed}, {"key", l_key},
