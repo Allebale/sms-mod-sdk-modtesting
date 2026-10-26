@@ -536,7 +536,7 @@ API 1.5 beta 8 (`SMS_API_HAS(api, reflections)`): the port's puddle and water ef
 | `SHOW_MARIO`, `SHOW_CHARACTERS`, `SHOW_ENEMIES`, `SHOW_ITEMS`, `SHOW_OBJECTS` | what is reflected: 1, 0, 0, 0, 0. All but Mario need `PUDDLES` 1 |
 | `BY_SURFACE` | 0; 1 each puddle as strong as its floor's `STRENGTH_*` |
 | `STRENGTH_STONE` ... `STRENGTH_WET_GROUND` | tenths of a percent of the game's strength, 0 to 1000 (stone 300, metal 500, clay 400, wood 330, sand 50, grass 60, canvas 100, wet floors 550, water 500, wet ground 450) |
-| `WET_MARIO` | 0; 1 swimming, wading (half) or diving and belly-sliding through a puddle leaves Mario wet: his cloth and skin a little darker, a soft highlight where his lights catch them and a sheen at his edges, drying evenly over about 45 seconds |
+| `WET_MARIO` | 0; 1 water leaves Mario wet up to where it reached (his legs when wading, all of him after swimming): his cloth and skin darker and their colours deeper, a small, tight highlight, and drops of water falling from him, drying evenly over about 45 seconds |
 
 ```c
 api->reflections->set(mod, SMS_REFLECT_WATER, 1);
