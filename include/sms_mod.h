@@ -1715,7 +1715,9 @@ typedef enum SmsReflectOption {
 	SMS_REFLECT_STRENGTH_WET = 26,    /* wet, slippery floors (550) */
 	SMS_REFLECT_STRENGTH_WATER = 27,  /* the stage's water, with SMS_REFLECT_WATER (500) */
 	SMS_REFLECT_STRENGTH_WET_GROUND = 28, /* wet ground itself, with SMS_REFLECT_WATER (450) */
-	SMS_REFLECT_OPTION_COUNT = 29     /* grows with the API: check range() */
+	SMS_REFLECT_WET_MARIO = 29,       /* 1 swimming, or diving into a puddle, leaves Mario wet: darker and
+	                                     slightly shiny, drying over about 45 seconds */
+	SMS_REFLECT_OPTION_COUNT = 30     /* grows with the API: check range() */
 } SmsReflectOption;
 
 typedef struct SmsReflectionsApi {
