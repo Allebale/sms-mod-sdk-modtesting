@@ -1839,8 +1839,8 @@ struct SmsApi {
 	   of its minor version (check api->size). */
 	uint32_t prerelease;
 	const SmsFilesApi* files;       /* API 1.5 (SMS_API_HAS(api, files)) */
+	const SmsHeldFluddApi* held_fludd;    /* first person (SMS_API_HAS(api, held_fludd); check its magic), as the First Person SDK has it */
 	const SmsReflectionsApi* reflections; /* combined-plus (SMS_API_HAS(api, reflections)) */
-	const SmsHeldFluddApi* held_fludd;    /* combined-plus (SMS_API_HAS(api, held_fludd)) */
 };
 
 /* ------------------------------------------------------------------ the mod's side */
