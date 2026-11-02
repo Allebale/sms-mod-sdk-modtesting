@@ -1734,7 +1734,7 @@ typedef struct SmsFilesApi {
 	int (*remove)(SmsMod* mod, int scope, const char* name);
 } SmsFilesApi;
 
-/* ------------------------------------------------------------------ FLUDD held in view (Allebale's first-person SDK) */
+/* ------------------------------------------------------------------ FLUDD held in view (first person) */
 
 /* api->held_fludd (SMS_API_HAS(api, held_fludd); check `magic` too): FLUDD
  * drawn in front of the view, held like a gun, for a first-person camera.
@@ -1781,10 +1781,7 @@ struct SmsApi {
 	   of its minor version (check api->size). */
 	uint32_t prerelease;
 	const SmsFilesApi* files;       /* API 1.5 (SMS_API_HAS(api, files)) */
-	/* Allebale's builds: a slot kept empty here (his Remastered builds' reflections table is
-	   there), so that held_fludd sits where the First Person mod looks for it in both. */
-	const void* reserved_reflections;
-	const SmsHeldFluddApi* held_fludd; /* Allebale's builds (SMS_API_HAS(api, held_fludd); check its magic) */
+	const SmsHeldFluddApi* held_fludd; /* first person (SMS_API_HAS(api, held_fludd); check its magic) */
 };
 
 /* ------------------------------------------------------------------ the mod's side */
