@@ -1810,7 +1810,16 @@ typedef struct SmsHeldFluddApi {
 	uint32_t magic; /* SMS_HELD_FLUDD_MAGIC */
 	/* on 1 holds it, 0 lets it go back on his back; returns 1 if Mario is there */
 	int (*set)(int on, float right, float down, float forward, float scale, float aim);
+	/* While it is held, the spray nozzle fires as a weapon (SMS_SPRAY_*) instead of its stream,
+	   while R is held: still FLUDD's water. A weapon's drops shove the small enemies they reach
+	   (harder or softer by the weapon), and with SMS_SPRAY_DEFEAT in `flags` defeat them after a
+	   few hits, as a stomp. SMS_SPRAY_NORMAL is the game's own stream: it never shoves or defeats.
+	   (Check size: SMS_API_HAS(held_fludd, set_weapon).) */
+	int (*set_weapon)(int weapon, int flags);
 } SmsHeldFluddApi;
+
+enum { SMS_SPRAY_NORMAL = 0, SMS_SPRAY_SHOTGUN = 1, SMS_SPRAY_RIFLE = 2, SMS_SPRAY_BAZOOKA = 3 };
+#define SMS_SPRAY_DEFEAT 1 /* set_weapon's flags: a weapon may defeat enemies */
 
 struct SmsApi {
 	uint32_t size;
