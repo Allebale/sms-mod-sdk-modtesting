@@ -10,6 +10,7 @@ Pre-releases (`v1.5.0-beta.1`, `-beta.2`, ...) lead to a release and are listed 
 
 - `api->reflections` (`SmsReflectionsApi`; `SMS_API_HAS(api, reflections)`): the port's puddle and water effects, set by a mod: how long FLUDD's puddles last, characters, objects and the stage itself in puddles and water, the stage's water reflecting, ripples, sun glints, blur, deep water, wet footprints and each surface's strength, and a wet Mario (`SMS_REFLECT_*`). Each starts as the original game has it and goes back so when the mod that set it unloads.
 - In Lua: `sms.set_reflection(name, value)` and `sms.reflection(name)`.
+- `api->held_fludd` (`SmsHeldFluddApi`; `SMS_API_HAS(api, held_fludd)` and its `magic`): FLUDD held in front of the view like a gun, for a first-person camera; the water comes out of its nozzle there, towards the middle of the view.
 
 ### 1.6.0-beta.2
 

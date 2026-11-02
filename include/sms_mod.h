@@ -1792,6 +1792,26 @@ typedef struct SmsReflectionsApi {
 	int (*range)(int option, int* min, int* max, int* original);
 } SmsReflectionsApi;
 
+/* ------------------------------------------------------------------ FLUDD held in view (combined-plus) */
+
+/* api->held_fludd (SMS_API_HAS(api, held_fludd); check `magic` too): FLUDD
+ * drawn in front of the view, held like a gun, for a first-person camera.
+ * The game's own FLUDD model, moved each frame to `right`, `down` and
+ * `forward` units from the camera (its nozzle's tip there), at `scale` of its
+ * size, pointing where the view looks (at a point `aim` units ahead, the
+ * middle of the view); the water comes out of its nozzle there, towards that
+ * point. Only with the spray and underwater nozzles and off Yoshi; with the
+ * others FLUDD is drawn as the game does. It is drawn even with Mario's models
+ * left out (SMS_EV_HIDE_PLAYER_MODEL, SMS_PLAYER_PART_FLUDD). Off when the mod
+ * that set it unloads. */
+#define SMS_HELD_FLUDD_MAGIC 0x444C4648u /* "HFLD" */
+typedef struct SmsHeldFluddApi {
+	uint32_t size;
+	uint32_t magic; /* SMS_HELD_FLUDD_MAGIC */
+	/* on 1 holds it, 0 lets it go back on his back; returns 1 if Mario is there */
+	int (*set)(int on, float right, float down, float forward, float scale, float aim);
+} SmsHeldFluddApi;
+
 struct SmsApi {
 	uint32_t size;
 	uint16_t major, minor;
@@ -1811,6 +1831,7 @@ struct SmsApi {
 	uint32_t prerelease;
 	const SmsFilesApi* files;       /* API 1.5 (SMS_API_HAS(api, files)) */
 	const SmsReflectionsApi* reflections; /* combined-plus (SMS_API_HAS(api, reflections)) */
+	const SmsHeldFluddApi* held_fludd;    /* combined-plus (SMS_API_HAS(api, held_fludd)) */
 };
 
 /* ------------------------------------------------------------------ the mod's side */
