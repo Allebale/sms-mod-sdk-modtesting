@@ -1734,6 +1734,35 @@ typedef struct SmsFilesApi {
 	int (*remove)(SmsMod* mod, int scope, const char* name);
 } SmsFilesApi;
 
+/* ------------------------------------------------------------------ FLUDD held in view (Allebale's first-person SDK) */
+
+/* api->held_fludd (SMS_API_HAS(api, held_fludd); check `magic` too): FLUDD
+ * drawn in front of the view, held like a gun, for a first-person camera.
+ * The game's own FLUDD model, moved each frame to `right`, `down` and
+ * `forward` units from the camera (its nozzle's tip there), at `scale` of its
+ * size, pointing where the view looks (at a point `aim` units ahead, the
+ * middle of the view); the water comes out of its nozzle there, towards that
+ * point. Only with the spray and underwater nozzles and off Yoshi; with the
+ * others FLUDD is drawn as the game does. It is drawn even with Mario's models
+ * left out (SMS_EV_HIDE_PLAYER_MODEL, SMS_PLAYER_PART_FLUDD). Off when the mod
+ * that set it unloads. */
+#define SMS_HELD_FLUDD_MAGIC 0x444C4648u /* "HFLD" */
+typedef struct SmsHeldFluddApi {
+	uint32_t size;
+	uint32_t magic; /* SMS_HELD_FLUDD_MAGIC */
+	/* on 1 holds it, 0 lets it go back on his back; returns 1 if Mario is there */
+	int (*set)(int on, float right, float down, float forward, float scale, float aim);
+	/* While it is held, the spray nozzle fires as a weapon (SMS_SPRAY_*) instead of its stream,
+	   while R is held: still FLUDD's water. A weapon's drops shove the small enemies they reach
+	   (harder or softer by the weapon), and with SMS_SPRAY_DEFEAT in `flags` defeat them after a
+	   few hits, as a stomp. SMS_SPRAY_NORMAL is the game's own stream: it never shoves or defeats.
+	   (Check size: SMS_API_HAS(held_fludd, set_weapon).) */
+	int (*set_weapon)(int weapon, int flags);
+} SmsHeldFluddApi;
+
+enum { SMS_SPRAY_NORMAL = 0, SMS_SPRAY_SHOTGUN = 1, SMS_SPRAY_RIFLE = 2, SMS_SPRAY_BAZOOKA = 3 };
+#define SMS_SPRAY_DEFEAT 1 /* set_weapon's flags: a weapon may defeat enemies */
+
 struct SmsApi {
 	uint32_t size;
 	uint16_t major, minor;
@@ -1752,6 +1781,10 @@ struct SmsApi {
 	   of its minor version (check api->size). */
 	uint32_t prerelease;
 	const SmsFilesApi* files;       /* API 1.5 (SMS_API_HAS(api, files)) */
+	/* Allebale's builds: a slot kept empty here (his Remastered builds' reflections table is
+	   there), so that held_fludd sits where the First Person mod looks for it in both. */
+	const void* reserved_reflections;
+	const SmsHeldFluddApi* held_fludd; /* Allebale's builds (SMS_API_HAS(api, held_fludd); check its magic) */
 };
 
 /* ------------------------------------------------------------------ the mod's side */

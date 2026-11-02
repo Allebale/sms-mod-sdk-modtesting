@@ -6,6 +6,12 @@ Pre-releases (`v1.5.0-beta.1`, `-beta.2`, ...) lead to a release and are listed 
 
 ## 1.6.0 (in beta)
 
+### first-person-beta (Allebale's fork, not in the official SDK)
+
+- `api->held_fludd` (`SmsHeldFluddApi`; `SMS_API_HAS(api, held_fludd)` and its `magic`): FLUDD held in front of the view like a gun, for a first-person camera; the water comes out of its nozzle there, towards the middle of the view.
+- `held_fludd->set_weapon(weapon, flags)` (`SMS_SPRAY_*`): the held FLUDD's spray fires as a shotgun, rifle or bazooka of water; their drops shove small enemies, and with `SMS_SPRAY_DEFEAT` defeat them after a few hits. The normal spray never does either.
+- `reserved_reflections`: an empty slot before it, where Allebale's Remastered builds have `reflections`, so one First Person mod finds `held_fludd` in both.
+
 ### 1.6.0-beta.2
 
 - `SMS_EV_EPISODE_SELECT` (`SmsEvEpisodeSelect`: `area`, `offered`, `first`, `max_offered`): a world's episode select is opening. `offered` (how many episodes it offers, from the first; 1 to `max_offered`) and `first` (the episode the cursor starts on) may be changed: every episode from the start, say, or the cursor elsewhere. In Super Mario Eclipse `max_offered` is 0 and only `first` may change. In Lua, `episode_select`.
