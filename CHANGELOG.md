@@ -4,6 +4,17 @@ A release's tag is the API version (`v1.1.0` is API 1.1). Within a major version
 
 Pre-releases (`v1.5.0-beta.1`, `-beta.2`, ...) lead to a release and are listed under it, newest first, until it comes out. What a beta added may still change before the release; see [Pre-releases](docs/MODDING.md#pre-releases).
 
+## Unreleased
+
+FLUDD held in view and FLUDD's spray weapons, for first-person and weapons mods (Allebale's First Person and FLUDD Weapons).
+
+- `api->held_fludd` (`SmsHeldFluddApi`, after `files`; `SMS_API_HAS(api, held_fludd)` and its `magic`): `set` holds FLUDD in front of the view like a gun for a first-person camera, its water coming from the nozzle there.
+- `held_fludd->set_weapon(weapon, flags)` (`SMS_SPRAY_*`, `SMS_SPRAY_DEFEAT`, `SMS_SPRAY_DEFEAT_NORMAL`, `SMS_SPRAY_THIRD_PERSON`, `SMS_SPRAY_THIRD_PERSON_MODEL`): the spray fires as a rifle, submachine gun or bazooka of water, in first or third person; their shots push small enemies and may defeat them. The normal spray is the game's own.
+- `held_fludd->set_weapon_stats(weapon, stats)` (`SmsSprayStats`): each weapon's fire rate, push, range, shots to defeat, water, hit size, burst, lift, drop size, the bazooka's rocket jump (`self_jump`, first person only), hold distance (`view_distance`), long range (`far_scale`) and Shadow Mario's damage (`shadow_damage`).
+- `held_fludd->set_view`, `set_zoom` (`SMS_ZOOM_FIRST_PERSON`, `SMS_ZOOM_SCOPE`), `get_state` (`SmsHeldFluddState`, `game_scope`): a first-person mod and a weapons mod, each its own, work together through the game.
+- `held_fludd->take_mouse(dx, dy)`: the captured mouse's motion for a first-person mod's mouse look.
+- Nothing changes in the game unless a mod calls these.
+
 ## 1.6.0
 
 A save file's menu at file select, for a mod's own screen on a new game; the episode select, and a Shine taken without its Shine Get, for randomizers; every status of Mario's asked, and the port's warps told apart from the stage's ways out; and goop for server mods.
