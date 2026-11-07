@@ -1790,7 +1790,7 @@ typedef struct SmsSprayStats {
 	                        there; 1 (or 0) the game's own */
 	float shadow_damage; /* Shadow Mario (the same for every weapon, the last one set): how much of his water meter a
 	                        weapon's hit takes, times the game's own (1, a Rifle shot a third of it); 0 the game's own */
-	float goop_area;     /* the bazooka's: the round its burst washes goop off in, times its own (660 across); 0 its
+	float goop_area;     /* the bazooka's: the round its burst washes goop off in, times its own (860 out from its middle); 0 its
 	                        burst's size's (check size) */
 } SmsSprayStats;
 
