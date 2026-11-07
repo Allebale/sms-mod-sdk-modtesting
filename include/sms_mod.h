@@ -1790,6 +1790,8 @@ typedef struct SmsSprayStats {
 	                        there; 1 (or 0) the game's own */
 	float shadow_damage; /* Shadow Mario (the same for every weapon, the last one set): how much of his water meter a
 	                        weapon's hit takes, times the game's own (1, a Rifle shot a third of it); 0 the game's own */
+	float goop_area;     /* the bazooka's: the round its burst washes goop off in, times its own (660 across); 0 its
+	                        burst's size's (check size) */
 } SmsSprayStats;
 
 /* held_fludd->get_state: what a first-person mod and a weapons mod set, for each other. */
@@ -1852,6 +1854,7 @@ enum { SMS_SPRAY_NORMAL = 0, SMS_SPRAY_SHOTGUN = 1, SMS_SPRAY_RIFLE = 2, SMS_SPR
 #define SMS_SPRAY_ROCKET_OUCH 4096 /* set_weapon's flags: with SMS_SPRAY_ROCKET_HURT, Mario cries out in pain as a rocket jump hurts him */
 #define SMS_SPRAY_VOICE_SHIFT 13 /* set_weapon's flags: volume << 13, SMS_SPRAY_ROCKET_OUCH's cries' volume in percent (7 bits: 1 to 100); 0 as recorded */
 #define SMS_SPRAY_GOOP_SHIFT 20 /* set_weapon's flags: (percent / 10) << 20, how much goop the weapons clean, 100 the game's own (7 bits: up to 1270); 0 the game's own */
+#define SMS_SPRAY_MUTE_MARIO (1 << 27) /* set_weapon's flags: Mario's own voice left out (a weapons mod's rocket jump key held: its cries play alone) */
 
 struct SmsApi {
 	uint32_t size;
