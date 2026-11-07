@@ -1850,7 +1850,7 @@ enum { SMS_SPRAY_NORMAL = 0, SMS_SPRAY_SHOTGUN = 1, SMS_SPRAY_RIFLE = 2, SMS_SPR
 #define SMS_SPRAY_ROCKET_HURT 1024 /* set_weapon's flags: each rocket jump costs Mario a point of health (as the game takes it) */
 #define SMS_SPRAY_HEARTS 2048 /* set_weapon's flags: an enemy a weapon defeats drops a heart beside its coin, a point of health when Mario touches it */
 #define SMS_SPRAY_ROCKET_OUCH 4096 /* set_weapon's flags: with SMS_SPRAY_ROCKET_HURT, Mario cries out in pain as a rocket jump hurts him */
-#define SMS_SPRAY_VOICE_SHIFT 13 /* set_weapon's flags: (volume / 5) << 13, SMS_SPRAY_ROCKET_OUCH's cries' volume in percent (6 bits: up to 315); 0 as recorded */
+#define SMS_SPRAY_VOICE_SHIFT 13 /* set_weapon's flags: volume << 13, SMS_SPRAY_ROCKET_OUCH's cries' volume in percent (7 bits: 1 to 100); 0 as recorded */
 
 struct SmsApi {
 	uint32_t size;
