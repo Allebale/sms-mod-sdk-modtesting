@@ -1844,6 +1844,8 @@ enum { SMS_SPRAY_NORMAL = 0, SMS_SPRAY_SHOTGUN = 1, SMS_SPRAY_RIFLE = 2, SMS_SPR
 #define SMS_SPRAY_THIRD_PERSON_MODEL 16 /* set_weapon's flags: with SMS_SPRAY_THIRD_PERSON, all of FLUDD on his back drawn as a pack of the weapon's colours with the weapon on it */
 #define SMS_SPRAY_BOSSES 32 /* set_weapon's flags: the weapons made for bosses (Proto Piranha's mouth and pile, Petey Piranha filled faster, ...); not Shadow Mario (shadow_damage) */
 #define SMS_SPRAY_AIR_FORWARD 64 /* set_weapon's flags: a bazooka hit on an enemy already in the air pushes it on forward, away from Mario, not up again */
+#define SMS_SPRAY_SHOT_WATER 128 /* set_weapon's flags: the bazooka's shot seen flying to where it bursts, a streak of water (only to look at) */
+#define SMS_SPRAY_SHOT_BALLOON 256 /* set_weapon's flags: ...as a green water balloon that pops there (SMS_SPRAY_SHOT_WATER left out) */
 
 struct SmsApi {
 	uint32_t size;
