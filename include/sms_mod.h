@@ -1834,6 +1834,20 @@ typedef struct SmsHeldFluddApi {
 	   down positive) into *dx, *dy; returns 1 while the game has the mouse captured (its mouse camera,
 	   F10), 0 when not (the motion is then 0). (Check size: SMS_API_HAS(held_fludd, take_mouse).) */
 	int (*take_mouse)(float* dx, float* dy);
+	/* Split-screen co-op (First Person beta, 2026.11.10): two players, each with their own Mario,
+	   camera and half of the screen. players() is 2 while a second player plays, else 1. player()
+	   is the player the game runs as now: 0 the first, 1 the second (in SMS_EV_CAMERA and
+	   SMS_EV_HIDE_PLAYER_MODEL, whose camera or model it is). select_player(p) makes api->player
+	   and this table act on player p (its FLUDD, its weapon, its view's state) until
+	   select_player(-1), or until the mod's handler returns. Each player's head and FLUDD left out
+	   (player->set_hidden_parts) are left out in their own view only. A game without them has
+	   one player. (Check size: SMS_API_HAS(held_fludd, select_player), player_view.) */
+	int (*players)(void);
+	int (*player)(void);
+	void (*select_player)(int player);
+	/* A player's part of the screen while it is split in two (x, y, w, h: parts of the whole, 0 to
+	   1; player 1's left or top): returns 1, else 0 (the whole screen, 0, 0, 1, 1). */
+	int (*player_view)(int player, float* x, float* y, float* w, float* h);
 } SmsHeldFluddApi;
 
 enum { SMS_SPRAY_NORMAL = 0, SMS_SPRAY_SHOTGUN = 1, SMS_SPRAY_RIFLE = 2, SMS_SPRAY_BAZOOKA = 3, SMS_SPRAY_SMG = 4 };
