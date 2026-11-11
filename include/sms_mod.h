@@ -1155,6 +1155,12 @@ typedef struct SmsGameApi {
 	/* API 1.8: the stage's map (its walls, floors, roofs) between a and b:
 	   1 and where it first meets it into hit (may be NULL), 0 clear. */
 	int (*ray)(const SmsVec3* a, const SmsVec3* b, SmsVec3* hit);
+	/* API 1.8: the game's splash of water at a point (`size` as its own:
+	   about 10 a drop's, 30 a dive's); 1 made. */
+	int (*splash)(const SmsVec3* at, float size);
+	/* API 1.8: goop washed off the ground and walls within `radius` of a
+	   point, as water washes it (SMS_EV_GOOP_CLEANED hears of it). 1 done. */
+	int (*clean_goop)(const SmsVec3* at, float radius);
 } SmsGameApi;
 
 /* game->object_set_color's `which` (API 1.5) */
@@ -1962,8 +1968,10 @@ struct SmsWaterDrop {
 	int attack;             /* the game's attack (1..255: how hard it hits) */
 	uint32_t tag;           /* the mod's own number for it (emit sets it); 0 the game's */
 	int flags;              /* emit: the game's emit flags (TWaterEmitInfo's mFlag), 0 the stream's own */
-	int player;             /* get: the player whose FLUDD made it (co-op: 0 or 1), -1 none */
+	int player;             /* whose: the player whose FLUDD made it (co-op: 0 or 1), -1 none; emit: the
+	                           player it is made for (its hits are theirs), -1 the one the game runs as */
 	float rate;             /* nozzle_drop: the tank's water one drop of its stream uses */
+	int landed;             /* get: 0 flying, 1 on the ground, 2 on a wall */
 };
 
 typedef struct SmsEvWaterEmit {
