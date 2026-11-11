@@ -371,6 +371,16 @@ typedef enum SmsEventType {
 	   another coin's (`model`, `game_model`), and the mod learns which
 	   object a blue coin is (`id`). SmsEvItemSetup. */
 	SMS_EV_ITEM_SETUP = 71,
+	/* (API 1.8) A player's FLUDD is about to make drops of its stream (the
+	   spray or the underwater nozzle, as R is held), one request of them
+	   (`drop`: the first drop's place, way and speed, size, reach).
+	   Cancellable: cancel and it makes none (a mod making drops of its own
+	   with water->emit, which this event does not hear of). SmsEvWaterEmit. */
+	SMS_EV_WATER_EMIT = 72,
+	/* (API 1.8) An object took a hit that SMS_EV_OBJECT_HIT let through
+	   (sprayed, stomped, punched, ground-pounded): `result` what it made of
+	   it (1 it took it). SmsEvHitDone. */
+	SMS_EV_OBJECT_HIT_DONE = 73,
 
 	/* core->event_id hands out ids from here for mods' own events. */
 	SMS_EV_CUSTOM_BASE = 0x10000
@@ -785,6 +795,14 @@ typedef struct SmsEvShineTouch {
 #define SMS_FIRE_BURST    0 /* A while R is held */
 #define SMS_FIRE_PRESSURE 1 /* R held until the pressure is full */
 
+typedef struct SmsWaterDrop SmsWaterDrop;
+
+typedef struct SmsEvHitDone {
+	SmsObject object, sender;
+	uint32_t message; /* the game's HIT_MESSAGE_* */
+	int result;       /* the object took it (1) or not (0) */
+} SmsEvHitDone;
+
 typedef struct SmsEvNozzleFire {
 	int nozzle; /* FLUDD's nozzle out: 0 spray, 1 rocket, 2 underwater, 4 hover, 5 turbo */
 	int how;    /* SMS_FIRE_* */
@@ -1130,6 +1148,13 @@ typedef struct SmsGameApi {
 	   or the stage changes, whatever the model's colour animations do.
 	   0 when the object has no model. */
 	int (*object_set_tint)(SmsObject obj, SmsColor color);
+	/* API 1.8: one of the game's particle effects (its number, as the
+	   game's PARTICLE_* in the decomp's Particles.hpp, docs/MODDING.md) at
+	   a point, as the game plays them. 1 played. */
+	int (*particle)(uint32_t id, const SmsVec3* at);
+	/* API 1.8: the stage's map (its walls, floors, roofs) between a and b:
+	   1 and where it first meets it into hit (may be NULL), 0 clear. */
+	int (*ray)(const SmsVec3* a, const SmsVec3* b, SmsVec3* hit);
 } SmsGameApi;
 
 /* game->object_set_color's `which` (API 1.5) */
@@ -1383,6 +1408,9 @@ typedef struct SmsAudioApi {
 	/* One of the game's system sound effects (MSD_SE_SY_*: menu blips,
 	   coin, 1-up...), not placed in the world. */
 	void (*play_system_sound)(uint32_t id);
+	/* API 1.8: one of the game's sound effects (its MSD_SE_* number) played
+	   at a point in the world, as the game's objects play theirs. */
+	void (*play_sound_at)(uint32_t id, const SmsVec3* at);
 } SmsAudioApi;
 
 /* The game's own objects, for mods built against the decomp's headers with
@@ -1908,7 +1936,110 @@ typedef struct SmsHeldFluddApi {
 	/* A player's part of the screen while it is split in two (x, y, w, h: parts of the whole, 0 to
 	   1; player 1's left or top): returns 1, else 0 (the whole screen, 0, 0, 1, 1). */
 	int (*player_view)(int player, float* x, float* y, float* w, float* h);
+	/* (API 1.8) The held FLUDD kicks back in the hands as from a shot, `amount` 0 to 1 (it settles
+	   back by itself). (Check size: SMS_API_HAS(held_fludd, kick).) */
+	void (*kick)(float amount);
+	/* (API 1.8) Where the view held FLUDD points along starts (the camera) and its way, the middle
+	   of the view: 1 while FLUDD is held in view. (Check size: SMS_API_HAS(held_fludd, aim).) */
+	int (*aim)(SmsVec3* eye, SmsVec3* forward);
 } SmsHeldFluddApi;
+
+/* ------------------------------------------------------------------ FLUDD's water drops (API 1.8) */
+
+/* api->water (SMS_API_HAS(api, water)): the drops of water FLUDD (and
+ * everything else that sprays the game's water) makes, flying until they
+ * land or end. A mod may make drops of its own, each carrying a number of
+ * the mod's (`tag`), follow them and move them, and learn which drop a hit
+ * came from (SMS_EV_OBJECT_HIT's sender). The game's drops have tag 0. */
+struct SmsWaterDrop {
+	uint32_t size;          /* sizeof, set before calling */
+	SmsVec3 position;
+	SmsVec3 velocity;       /* units a tick (emit: its way times its speed) */
+	float drop_size;        /* how big it is (drawn, and the goop it cleans) */
+	float hit_radius;       /* how far round it, and up and down, it reaches what it hits */
+	float hit_height;
+	int alive;              /* ticks it has left (emit: to live) */
+	int attack;             /* the game's attack (1..255: how hard it hits) */
+	uint32_t tag;           /* the mod's own number for it (emit sets it); 0 the game's */
+	int flags;              /* emit: the game's emit flags (TWaterEmitInfo's mFlag), 0 the stream's own */
+	int player;             /* get: the player whose FLUDD made it (co-op: 0 or 1), -1 none */
+	float rate;             /* nozzle_drop: the tank's water one drop of its stream uses */
+};
+
+typedef struct SmsEvWaterEmit {
+	int player;             /* whose FLUDD (co-op: 0 or 1) */
+	int count;              /* drops asked for */
+	SmsWaterDrop drop;      /* the first of them */
+} SmsEvWaterEmit;
+
+typedef struct SmsWaterApi {
+	uint32_t size;
+	/* The drop a player's FLUDD makes now with the nozzle it has out, as
+	   its stream would (its place at the nozzle, way and speed, size, life,
+	   attack, reach, and its water). 0: no FLUDD (or no such player). */
+	int (*nozzle_drop)(int player, SmsWaterDrop* out);
+	/* Makes one drop: position, velocity, drop_size, hit_radius,
+	   hit_height, alive, attack (0: 1), tag, flags. SMS_EV_WATER_EMIT does
+	   not hear of it. Returns its slot, or -1 (no room: the game keeps
+	   256). */
+	int (*emit)(const SmsWaterDrop* drop);
+	/* The drops alive now, in slots 0..count()-1. A slot changes as drops
+	   before it end: keep a drop's tag, not its slot, from tick to tick. */
+	int (*count)(void);
+	int (*get)(int slot, SmsWaterDrop* out);
+	/* A drop's position, velocity and alive (its drop_size too, if over
+	   0). 0: no such slot. */
+	int (*set)(int slot, const SmsWaterDrop* in);
+	/* The slot of the drop a hit came from (SmsEvHit's sender), or -1. */
+	int (*drop_of)(SmsObject sender);
+	/* A player's FLUDD uses `drops` of its stream's drops' worth of water
+	   (as its stream does; none with infinite water). Returns the water
+	   left, -1 with no FLUDD. */
+	int (*use)(int player, int drops);
+} SmsWaterApi;
+
+/* ------------------------------------------------------------------ actors (API 1.8) */
+
+/* api->actor (SMS_API_HAS(api, actor)): the stage's moving actors (its
+ * enemies, characters, items): how they move, what they are, what is near.
+ * SmsObject from events, game->find_object, or near(). */
+
+/* actor->flags: SMS_ACTOR_FLAG_* */
+#define SMS_ACTOR_FLAG_AIRBORNE 1u  /* off the ground (set: thrown up; the game's own fall brings it down) */
+#define SMS_ACTOR_FLAG_DEAD     2u  /* defeated or gone */
+#define SMS_ACTOR_FLAG_HIDDEN   4u  /* out of the stage for now */
+#define SMS_ACTOR_FLAG_WALKS    8u  /* an enemy that walks about by itself (Goombas, Strollin' Stus...), not one rooted,
+                                  flying, on a fence or a boss's part */
+#define SMS_ACTOR_FLAG_SMALL_ENEMY 16u /* one of the stage's small enemies (that the game defeats as a stomp) */
+#define SMS_ACTOR_FLAG_CHARACTER 32u   /* a friendly character (a Pianta, a Noki) */
+
+typedef struct SmsActorApi {
+	uint32_t size;
+	/* Its speed, units a tick. 0: not an actor that moves. */
+	int (*velocity)(SmsObject actor, SmsVec3* out);
+	int (*set_velocity)(SmsObject actor, const SmsVec3* v);
+	/* SMS_ACTOR_FLAG_* (0 for what is no actor). */
+	uint32_t (*flags)(SmsObject actor);
+	/* Sets (`on`) or clears (`off`) SMS_ACTOR_FLAG_AIRBORNE: 1 done. */
+	int (*set_flags)(SmsObject actor, uint32_t on, uint32_t off);
+	/* Defeats a small enemy as a stomp does (its own defeat, its coins).
+	   1 done. */
+	int (*defeat)(SmsObject actor);
+	/* Actors whose middle is within `radius` of p (across the ground and up
+	   and down), with any of the SMS_ACTOR_FLAG_* in `kinds` (0: any),
+	   not dead or hidden, into out (up to `most`); returns how many there
+	   are (may be more than `most`). */
+	int (*near)(const SmsVec3* p, float radius, uint32_t kinds, SmsObject* out, int most);
+	/* How far round it (radius) and how high (height) it is hit. */
+	int (*hit_size)(SmsObject actor, float* radius, float* height);
+	/* Moves it dx, dz across the ground now as the game moves actors: kept
+	   out of walls, sliding along them, and within the stage. Returns 1
+	   moved, 2 moved against a wall, 0 not (the stage's edge, no actor). */
+	int (*push)(SmsObject actor, float dx, float dz);
+	/* The game's own message (HIT_MESSAGE_*) to it, as from `sender` (an
+	   object, or 0: the player's Mario): what it makes of it (1 taken). */
+	int (*send)(SmsObject actor, SmsObject sender, uint32_t message);
+} SmsActorApi;
 
 enum { SMS_SPRAY_NORMAL = 0, SMS_SPRAY_SHOTGUN = 1, SMS_SPRAY_RIFLE = 2, SMS_SPRAY_BAZOOKA = 3, SMS_SPRAY_SMG = 4 };
 /* The goop weapons: FLUDD sprays as ever (its own model, pump and water), its stream fire goop,
@@ -1961,6 +2092,8 @@ struct SmsApi {
 	uint32_t prerelease;
 	const SmsFilesApi* files;       /* API 1.5 (SMS_API_HAS(api, files)) */
 	const SmsHeldFluddApi* held_fludd; /* API 1.7 (SMS_API_HAS(api, held_fludd); check its magic) */
+	const SmsWaterApi* water;       /* API 1.8 (SMS_API_HAS(api, water)) */
+	const SmsActorApi* actor;       /* API 1.8 (SMS_API_HAS(api, actor)) */
 };
 
 /* ------------------------------------------------------------------ the mod's side */
