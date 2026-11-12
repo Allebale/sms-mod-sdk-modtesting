@@ -13,7 +13,7 @@ General tools for a mod's own weapons, effects and models: what made the game's 
 - `api->water` (`SmsWaterApi`): FLUDD's drops, a mod's own drops (tagged, drawn by the mod or the game), the drops flying, the water used.
 - `api->actor` (`SmsActorApi`): actors' motion, flags, size and kind (`SMS_KIND_*`), the actors round a point, defeats, pushes, hit messages, model sizes, the water a boss, character or hiding picture still takes (`SmsWaterMeter`), balls knocked, the game's flames, sparks and smoke on them.
 - `api->models` (`SmsModelApi`): a mod's own models and pictures, drawn in the world or on FLUDD (held in view, on his back), FLUDD left out in their place.
-- `game->particle`, `ray`, `splash`, `clean_goop`, `wall_at`, `out_of_walls`, `set_view_distance`; `audio->play_sound_at`, `play_clip`; `player->set_fall_start`, `burn`; `SmsPlayer`'s `gravity`, `intended_yaw`, `intended_speed`, `invincible`; `held_fludd->kick`, `aim`, `pose`, `dress`.
+- `game->particle`, `ray`, `splash`, `clean_goop`, `wall_at`, `out_of_walls`, `set_view_distance`; `audio->play_sound_at`, `play_clip`; `player->set_fall_start`, `burn`, `hurt`; `SmsPlayer`'s `gravity`, `intended_yaw`, `intended_speed`, `invincible`; `held_fludd->kick`, `aim`, `pose`, `dress`.
 - Events: `SMS_EV_WATER_EMIT`, `SMS_EV_WATER_LAND`, `SMS_EV_OBJECT_HIT_DONE`, `SMS_EV_DRAW_SCENE`, `SMS_EV_DRAW_UNDER_HUD`.
 - Gone: `held_fludd->set_weapon` and `set_weapon_stats` (their places in the table are NULL), `SmsSprayStats` and the `SMS_SPRAY_*` numbers; `SmsHeldFluddState.weapon` is `unused`. The game no longer has weapons of its own; only the FLUDD Weapons mod used them, and it is built on the tools above. A mod built against 1.7's names needs these out to build.
 

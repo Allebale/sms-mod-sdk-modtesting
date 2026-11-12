@@ -571,7 +571,7 @@ API 1.8: general tools for a mod's own weapons, effects and models. Check each t
 | `hide_fludd(player, frames)` | FLUDD left out this tick where a mod's model takes its place |
 | `texture_create`, `texture_update`, `texture_destroy` | pictures of the mod's own (RGBA) |
 
-More of 1.8: `game->particle`, `ray`, `splash`, `clean_goop`, `wall_at`, `out_of_walls`, `set_view_distance` (enemies seen and moving further away); `audio->play_sound_at`, `play_clip` (a mod's own sound); `player->set_fall_start`, `burn`, and `SmsPlayer`'s `gravity`, `intended_yaw`, `intended_speed`, `invincible`. Events: `SMS_EV_WATER_EMIT` (a player's FLUDD about to spray: cancel it, or tag its drops), `SMS_EV_WATER_LAND` (a drop landing), `SMS_EV_OBJECT_HIT_DONE` (after a hit), `SMS_EV_DRAW_SCENE` (each view as its scene is drawn: draw at once there), `SMS_EV_DRAW_UNDER_HUD` (each view before the HUD: a scope, say).
+More of 1.8: `game->particle`, `ray`, `splash`, `clean_goop`, `wall_at`, `out_of_walls`, `set_view_distance` (enemies seen and moving further away); `audio->play_sound_at`, `play_clip` (a mod's own sound); `player->set_fall_start`, `burn`, `hurt` (damage the game's own way, so 0 health loses a life), and `SmsPlayer`'s `gravity`, `intended_yaw`, `intended_speed`, `invincible`. Events: `SMS_EV_WATER_EMIT` (a player's FLUDD about to spray: cancel it, or tag its drops), `SMS_EV_WATER_LAND` (a drop landing), `SMS_EV_OBJECT_HIT_DONE` (after a hit), `SMS_EV_DRAW_SCENE` (each view as its scene is drawn: draw at once there), `SMS_EV_DRAW_UNDER_HUD` (each view before the HUD: a scope, say).
 
 ### draw, input, config, audio
 
