@@ -550,6 +550,7 @@ API 1.8: general tools for a mod's own weapons, effects and models. Check each t
 | `emit(drop)` | a drop of the mod's own; `tag` a number of the mod's for it, `unseen` 1 to leave it out of the water's drawing (the mod draws it) |
 | `count()`, `get(slot, out)`, `set(slot, in)`, `drop_of(sender)` | the drops flying now, and which drop a hit came from (`SMS_EV_OBJECT_HIT`'s sender) |
 | `use(player, drops)` | FLUDD's water used as by so many drops |
+| `seen_at(at, view)` | co-op: where a point is seen in a view; a first-person player's stream, seen by the other, comes off the FLUDD on their back (draw your own drops there) |
 
 | `api->actor` | |
 | --- | --- |
