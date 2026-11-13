@@ -1896,6 +1896,64 @@ enum { SMS_SPRAY_NORMAL = 0, SMS_SPRAY_SHOTGUN = 1, SMS_SPRAY_RIFLE = 2, SMS_SPR
                           when get_state's game_scope says so */
 #define SMS_SPRAY_THIRD_PERSON_MODEL 16 /* set_weapon's flags: with SMS_SPRAY_THIRD_PERSON, all of FLUDD on his back drawn as a pack of the weapon's colours with the weapon on it */
 
+/* ------------------------------------------------------------------ reflections (remastered fork) */
+
+/* api->reflections (SMS_API_HAS(api, reflections)): the port's puddle and
+ * water effects. FLUDD's puddles that last longer; characters, objects and the
+ * stage itself in puddles and water; ripples, sun glints, blur, deep water,
+ * wet footprints. The game draws them; a mod only sets how. Every option starts
+ * as the original game has it, and goes back so when the mod that set it is
+ * unloaded (switched off in the Mods menu, or at exit). Options marked "next
+ * area" take effect as the next area loads. */
+typedef enum SmsReflectOption {
+	SMS_REFLECT_PUDDLE_LIFETIME = 0, /* 1 (the game) to 8: FLUDD's puddles last as many times longer */
+	SMS_REFLECT_PUDDLES = 1,         /* 0 Mario, FLUDD and Yoshi only (the game); 1 everything. Next area */
+	SMS_REFLECT_DISTANCE = 2,        /* 500 to 5000 units around Mario that reflections are drawn over (1000) */
+	SMS_REFLECT_WATER = 3,           /* 1 the sea, lakes, pools, fountains, streams and wet ground reflect too */
+	SMS_REFLECT_BEAT_MIRRORS = 4,    /* 1 in a real mirror's area, a puddle near Mario reflects, not the mirror */
+	SMS_REFLECT_LEVEL = 5,           /* 1 the stage itself (ground, buildings, sky) is reflected. Next area */
+	SMS_REFLECT_VIEW_ANGLE = 6,      /* 0 off, 1 subtle, 2 realistic: stronger looking across, weaker down */
+	SMS_REFLECT_PUDDLE_RIPPLES = 7,  /* 0 off, 1 gentle, 2 strong: new puddles and steps ripple, calming in 2 s */
+	SMS_REFLECT_WATER_RIPPLES = 8,   /* 0 off, 1 gentle, 2 strong: the reflection in water wobbles */
+	SMS_REFLECT_SUN_GLINTS = 9,      /* 0 off, 1 subtle, 2 bright */
+	SMS_REFLECT_WATER_DEPTH = 10,    /* 0 off, 1 subtle, 2 strong: water darkens over deep ground */
+	SMS_REFLECT_BLUR = 11,           /* 0 sharp to 1000, hundredths (125 is 1.25) */
+	SMS_REFLECT_FOOTPRINTS = 12,     /* 1 after a puddle, Mario's steps leave damp prints that dry away */
+	/* What is reflected, 1 or 0. All but Mario need SMS_REFLECT_PUDDLES 1 */
+	SMS_REFLECT_SHOW_MARIO = 13,      /* Mario, FLUDD and Yoshi (1, the game) */
+	SMS_REFLECT_SHOW_CHARACTERS = 14, /* Piantas, Nokis and other people */
+	SMS_REFLECT_SHOW_ENEMIES = 15,    /* enemies and bosses */
+	SMS_REFLECT_SHOW_ITEMS = 16,      /* fruit and other things to take */
+	SMS_REFLECT_SHOW_OBJECTS = 17,    /* crates, trees, doors and the rest */
+	SMS_REFLECT_BY_SURFACE = 18,      /* 1 each puddle as strong as its floor's strength below; 0 all alike */
+	/* Strengths, in tenths of a percent of the game's own (0 to 1000) */
+	SMS_REFLECT_STRENGTH_STONE = 19,  /* stone tiles, carpets and other floors (300) */
+	SMS_REFLECT_STRENGTH_METAL = 20,  /* metal roofs, manhole covers (500) */
+	SMS_REFLECT_STRENGTH_CLAY = 21,   /* clay roof tiles (400) */
+	SMS_REFLECT_STRENGTH_WOOD = 22,   /* wooden boardwalks (330) */
+	SMS_REFLECT_STRENGTH_SAND = 23,   /* (50) */
+	SMS_REFLECT_STRENGTH_GRASS = 24,  /* (60) */
+	SMS_REFLECT_STRENGTH_CANVAS = 25, /* canvas awnings (100) */
+	SMS_REFLECT_STRENGTH_WET = 26,    /* wet, slippery floors (550) */
+	SMS_REFLECT_STRENGTH_WATER = 27,  /* the stage's water, with SMS_REFLECT_WATER (500) */
+	SMS_REFLECT_STRENGTH_WET_GROUND = 28, /* wet ground itself, with SMS_REFLECT_WATER (450) */
+	SMS_REFLECT_WET_MARIO = 29,       /* 1 water leaves Mario wet up to where it reached: darker, with a
+	                                     small highlight, dripping, drying over about 45 seconds */
+	SMS_REFLECT_OPTION_COUNT = 30     /* grows with the API: check range() */
+} SmsReflectOption;
+
+typedef struct SmsReflectionsApi {
+	uint32_t size;
+	/* Sets an option (SMS_REFLECT_*), the value clamped to its range.
+	   Returns 0 for an option this game does not have. */
+	int (*set)(SmsMod* mod, int option, int value);
+	/* The option's value now (whoever set it), or -1 if the game has none */
+	int (*get)(int option);
+	/* Its lowest, highest and the original game's value (each may be NULL);
+	   returns 0 for an option this game does not have. */
+	int (*range)(int option, int* min, int* max, int* original);
+} SmsReflectionsApi;
+
 struct SmsApi {
 	uint32_t size;
 	uint16_t major, minor;
@@ -1915,6 +1973,7 @@ struct SmsApi {
 	uint32_t prerelease;
 	const SmsFilesApi* files;       /* API 1.5 (SMS_API_HAS(api, files)) */
 	const SmsHeldFluddApi* held_fludd; /* API 1.7 (SMS_API_HAS(api, held_fludd); check its magic) */
+	const SmsReflectionsApi* reflections; /* Allebale's remastered fork (SMS_API_HAS(api, reflections)) */
 };
 
 /* ------------------------------------------------------------------ the mod's side */

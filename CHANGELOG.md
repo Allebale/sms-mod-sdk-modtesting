@@ -6,6 +6,11 @@ Pre-releases (`v1.5.0-beta.1`, `-beta.2`, ...) lead to a release and are listed 
 
 ## 1.8.0 (in beta)
 
+### remastered (Allebale's fork, not in the official SDK)
+
+- `api->reflections` (`SmsReflectionsApi`; `SMS_API_HAS(api, reflections)`): the port's puddle and water effects, set by a mod: how long FLUDD's puddles last, characters, objects and the stage itself in puddles and water, the stage's water reflecting, ripples, sun glints, blur, deep water, wet footprints and each surface's strength, and a wet Mario (`SMS_REFLECT_*`). Each starts as the original game has it and goes back so when the mod that set it unloads.
+- In Lua: `sms.set_reflection(name, value)` and `sms.reflection(name)`.
+
 ### 1.8.0-beta.1
 
 - `SmsGameState.select_area`, `.select_episode` (check `size`): while a world's episode select is up, its world and the episode its cursor is on (the one chosen, once A is pressed); -1 at any other time. The select is game mode `SMS_MODE_TITLE`, and `SMS_EV_DRAW` comes over it, so a mod can show more of the episode under the cursor (where a mod that shuffles stages takes the player, say). In Lua, `sms.state()`'s `select_area` and `select_episode`.
