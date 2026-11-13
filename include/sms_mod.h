@@ -371,6 +371,29 @@ typedef enum SmsEventType {
 	   another coin's (`model`, `game_model`), and the mod learns which
 	   object a blue coin is (`id`). SmsEvItemSetup. */
 	SMS_EV_ITEM_SETUP = 71,
+	/* (API 1.8) A player's FLUDD is about to make drops of its stream (the
+	   spray or the underwater nozzle, as R is held), one request of them
+	   (`drop`: the first drop's place, way and speed, size, reach).
+	   Cancellable: cancel and it makes none (a mod making drops of its own
+	   with water->emit, which this event does not hear of). SmsEvWaterEmit. */
+	SMS_EV_WATER_EMIT = 72,
+	/* (API 1.8) An object took a hit that SMS_EV_OBJECT_HIT let through
+	   (sprayed, stomped, punched, ground-pounded): `result` what it made of
+	   it (1 it took it). SmsEvHitDone. */
+	SMS_EV_OBJECT_HIT_DONE = 73,
+	/* (API 1.8) Each view (split-screen co-op: each player's half) as the
+	   game draws it, after the scene and before its HUD: draw with the draw
+	   table there, under the HUD (a scope, a mask, a tint). Its canvas is the
+	   view's own, 480 high (its units square on screen). Shapes and text only
+	   (no images, no clips). SmsEvDrawUnder. */
+	SMS_EV_DRAW_UNDER_HUD = 74,
+	/* (API 1.8) A drop touching the ground (its first touch) or a wall.
+	   Cancellable: cancel and it ends there. SmsEvWaterLand. */
+	SMS_EV_WATER_LAND = 75,
+	/* (API 1.8) Each view as its scene is drawn (co-op: each player's half):
+	   models->draw_* there draw at once, in this view only (things turned to
+	   face it: flames, a drop lit from the eye). SmsEvDrawScene. */
+	SMS_EV_DRAW_SCENE = 76,
 
 	/* core->event_id hands out ids from here for mods' own events. */
 	SMS_EV_CUSTOM_BASE = 0x10000
@@ -434,6 +457,18 @@ typedef struct SmsEvDraw {
 	uint32_t frame;
 	int mode;                 /* SmsGameMode */
 } SmsEvDraw;
+
+typedef struct SmsEvDrawUnder {
+	float canvas_w, canvas_h; /* the view's canvas, 480 high */
+	int player;               /* whose view (co-op: 1 the second player's) */
+	uint32_t frame;
+} SmsEvDrawUnder;
+
+typedef struct SmsEvDrawScene {
+	int view;               /* whose view (co-op: 1 the second player's) */
+	float view_mtx[3][4];   /* the world to this view (rows: right, up, back toward the viewer) */
+	SmsVec3 eye;            /* where it looks from */
+} SmsEvDrawScene;
 
 typedef struct SmsEvStage {
 	int area, episode; /* the stage: see docs/MODDING.md for the area numbers */
@@ -785,6 +820,14 @@ typedef struct SmsEvShineTouch {
 #define SMS_FIRE_BURST    0 /* A while R is held */
 #define SMS_FIRE_PRESSURE 1 /* R held until the pressure is full */
 
+typedef struct SmsWaterDrop SmsWaterDrop;
+
+typedef struct SmsEvHitDone {
+	SmsObject object, sender;
+	uint32_t message; /* the game's HIT_MESSAGE_* */
+	int result;       /* the object took it (1) or not (0) */
+} SmsEvHitDone;
+
 typedef struct SmsEvNozzleFire {
 	int nozzle; /* FLUDD's nozzle out: 0 spray, 1 rocket, 2 underwater, 4 hover, 5 turbo */
 	int how;    /* SMS_FIRE_* */
@@ -1130,6 +1173,31 @@ typedef struct SmsGameApi {
 	   or the stage changes, whatever the model's colour animations do.
 	   0 when the object has no model. */
 	int (*object_set_tint)(SmsObject obj, SmsColor color);
+	/* API 1.8: one of the game's particle effects (its number, as the
+	   game's PARTICLE_* in the decomp's Particles.hpp, docs/MODDING.md) at
+	   a point, as the game plays them. 1 played. */
+	int (*particle)(uint32_t id, const SmsVec3* at);
+	/* API 1.8: the stage's map (its walls, floors, roofs) between a and b:
+	   1 and where it first meets it into hit (may be NULL), 0 clear. */
+	int (*ray)(const SmsVec3* a, const SmsVec3* b, SmsVec3* hit);
+	/* API 1.8: the game's splash of water at a point (`size` as its own:
+	   about 10 a drop's, 30 a dive's); 1 made. */
+	int (*splash)(const SmsVec3* at, float size);
+	/* API 1.8: goop washed off the ground and walls within `radius` of a
+	   point, as water washes it (SMS_EV_GOOP_CLEANED hears of it). 1 done. */
+	int (*clean_goop)(const SmsVec3* at, float radius);
+	/* API 1.8: a wall of the stage's map within `radius` of a point (across
+	   the ground): 1 and its way out (across the ground, length 1) into
+	   normal (may be NULL), 0 none. */
+	int (*wall_at)(const SmsVec3* at, float radius, SmsVec3* normal);
+	/* API 1.8: actors (enemies and characters) seen, moving and hit out to
+	   `scale` times the game's own distances, and water drops kept that
+	   much further (1 the game's own). The furthest any mod asks for. */
+	int (*set_view_distance)(float scale);
+	/* (API 1.8; check size) A body of `radius` at `at` kept out of the walls round it, as the game
+	   keeps Mario: where it is put (`out`) and the wall's way out (`normal`, may be NULL). 1 when a
+	   wall moved it, 0 not (out is at). */
+	int (*out_of_walls)(const SmsVec3* at, float radius, SmsVec3* out, SmsVec3* normal);
 } SmsGameApi;
 
 /* game->object_set_color's `which` (API 1.5) */
@@ -1173,6 +1241,11 @@ typedef struct SmsPlayer {
 	/* API 1.5 (check size) */
 	int current_nozzle;  /* the nozzle FLUDD has out now: 0 spray, 3 on Yoshi */
 	int shirt, sunglasses, helmet; /* what he wears (player->set_outfit) */
+	/* API 1.8 (check size) */
+	float gravity;        /* how much faster he falls each tick in a jump (his jump's own) */
+	float intended_yaw;   /* degrees: the way the stick asks him to go (as yaw) */
+	float intended_speed; /* how far the stick is pushed, 0 to 1 */
+	int invincible;       /* (API 1.8) blinking after a hurt: nothing hurts him */
 } SmsPlayer;
 
 typedef struct SmsPlayerApi {
@@ -1214,6 +1287,16 @@ typedef struct SmsPlayerApi {
 	   Each mod's parts are its own and go when it unloads; the game leaves
 	   out every mod's. 0 when there is no Mario. */
 	int (*set_hidden_parts)(uint32_t parts);
+	/* API 1.8 (check size): where his fall counts from (a landing from no
+	   higher than this never stuns him). */
+	int (*set_fall_start)(float y);
+	/* (API 1.8; check size) Burnt as by the game's fire goop: thrown up holding his bottom, a point of
+	   health (unless he is already burning or blinking). 1 when he starts burning. */
+	int (*burn)(void);
+	/* (API 1.8; check size) Takes points of health the game's own way, so
+	   reaching 0 loses a life. Under water it takes air instead. 0 when there
+	   is no Mario. */
+	int (*hurt)(int points);
 } SmsPlayerApi;
 
 /* player->set_hidden_parts (API 1.5) */
@@ -1383,6 +1466,14 @@ typedef struct SmsAudioApi {
 	/* One of the game's system sound effects (MSD_SE_SY_*: menu blips,
 	   coin, 1-up...), not placed in the world. */
 	void (*play_system_sound)(uint32_t id);
+	/* API 1.8: one of the game's sound effects (its MSD_SE_* number) played
+	   at a point in the world, as the game's objects play theirs. */
+	void (*play_sound_at)(uint32_t id, const SmsVec3* at);
+	/* API 1.8: a sound clip of the mod's own (16-bit mono PCM, `frames`
+	   long at `rate` a second) played over the game's sound at its effects'
+	   volume, `volume` 1 as recorded. Copied: the mod's memory may go. A
+	   few at once; the oldest makes way. 1 played. */
+	int (*play_clip)(const int16_t* pcm, int frames, int rate, float volume);
 } SmsAudioApi;
 
 /* The game's own objects, for mods built against the decomp's headers with
@@ -1810,6 +1901,361 @@ typedef struct SmsFilesApi {
 	int (*remove)(SmsMod* mod, int scope, const char* name);
 } SmsFilesApi;
 
+/* ------------------------------------------------------------------ FLUDD held in view (first person) */
+
+/* api->held_fludd (API 1.7; SMS_API_HAS(api, held_fludd), check `magic` too): FLUDD
+ * drawn in front of the view, held like a gun, for a first-person camera.
+ * The game's own FLUDD model, moved each frame to `right`, `down` and
+ * `forward` units from the camera (its nozzle's tip there), at `scale` of its
+ * size, pointing where the view looks (at a point `aim` units ahead, the
+ * middle of the view); the water comes out of its nozzle there, towards that
+ * point. Only with the spray and underwater nozzles and off Yoshi; with the
+ * others FLUDD is drawn as the game does. It is drawn even with Mario's models
+ * left out (SMS_EV_HIDE_PLAYER_MODEL, SMS_PLAYER_PART_FLUDD). Off when the mod
+ * that set it unloads. */
+#define SMS_HELD_FLUDD_MAGIC 0x444C4648u /* "HFLD" */
+/* held_fludd->get_state: what a first-person mod and a mod with a gun (its zoom) set, for each other. */
+typedef struct SmsHeldFluddState {
+	uint32_t size;    /* sizeof(SmsHeldFluddState) */
+	int first_person; /* a first-person mod's camera is on (set_view) */
+	int held;         /* FLUDD is held in view now (set) */
+	int unused;       /* 0 (an older game's: the weapon chosen) */
+	float zoom_fovy;  /* the zoom asked for (set_zoom): the field of view to narrow the camera to; 0 none */
+	int zoom_flags;   /* SMS_ZOOM_FIRST_PERSON, SMS_ZOOM_SCOPE */
+	int game_scope;   /* 1: the game draws SMS_ZOOM_SCOPE's scope itself (an older game's); 0: a mod draws it
+	                     (SMS_EV_DRAW_UNDER_HUD) */
+} SmsHeldFluddState;
+
+typedef uint32_t SmsTexture; /* (API 1.8) a picture made with models->texture_create; 0 = none */
+
+typedef struct SmsHeldFluddApi {
+	uint32_t size;
+	uint32_t magic; /* SMS_HELD_FLUDD_MAGIC */
+	/* on 1 holds it, 0 lets it go back on his back; returns 1 if Mario is there */
+	int (*set)(int on, float right, float down, float forward, float scale, float aim);
+	/* Two places an older game used (its own weapons); NULL now. */
+	void (*unused_1)(void);
+	void (*unused_2)(void);
+	/* For a first-person mod and a mod with a gun to work together, each its own mod: a first-person
+	   mod says when its camera is on (whether FLUDD is held or not); the other asks for a zoom
+	   (`fovy` the field of view, 0 none; SMS_ZOOM_FIRST_PERSON in `flags`: switch into first person
+	   for it, SMS_ZOOM_SCOPE: a scope is drawn, leave a crosshair out); get_state tells each what
+	   the other set. The game itself does nothing with them. Reset when the mod that set them unloads.
+	   (Check size: SMS_API_HAS(held_fludd, get_state).) */
+	int (*set_view)(int on);
+	int (*set_zoom)(float fovy, int flags);
+	int (*get_state)(SmsHeldFluddState* state);
+	/* Mouse look for a first-person mod: the mouse's motion in pixels since the last call (right and
+	   down positive) into *dx, *dy; returns 1 while the game has the mouse captured (its mouse camera,
+	   F10), 0 when not (the motion is then 0). (Check size: SMS_API_HAS(held_fludd, take_mouse).) */
+	int (*take_mouse)(float* dx, float* dy);
+	/* Split-screen co-op (First Person beta, 2026.11.10): two players, each with their own Mario,
+	   camera and half of the screen. players() is 2 while a second player plays, else 1. player()
+	   is the player the game runs as now: 0 the first, 1 the second (in SMS_EV_CAMERA and
+	   SMS_EV_HIDE_PLAYER_MODEL, whose camera or model it is). select_player(p) makes api->player
+	   and this table act on player p (its FLUDD, its view's state) until
+	   select_player(-1), or until the mod's handler returns. Each player's head and FLUDD left out
+	   (player->set_hidden_parts) are left out in their own view only. A game without them has
+	   one player. (Check size: SMS_API_HAS(held_fludd, select_player), player_view.) */
+	int (*players)(void);
+	int (*player)(void);
+	void (*select_player)(int player);
+	/* A player's part of the screen while it is split in two (x, y, w, h: parts of the whole, 0 to
+	   1; player 1's left or top): returns 1, else 0 (the whole screen, 0, 0, 1, 1). */
+	int (*player_view)(int player, float* x, float* y, float* w, float* h);
+	/* (API 1.8) The held FLUDD kicks back in the hands as from a shot, `amount` 0 to 1 (it settles
+	   back by itself). (Check size: SMS_API_HAS(held_fludd, kick).) */
+	void (*kick)(float amount);
+	/* (API 1.8) Where the view held FLUDD points along starts (the camera) and its way, the middle
+	   of the view: 1 while FLUDD is held in view. (Check size: SMS_API_HAS(held_fludd, aim).) */
+	int (*aim)(SmsVec3* eye, SmsVec3* forward);
+	/* (API 1.8; check size) A player's FLUDD (its body and nozzles) shown in `texture` in place of
+	   each of its own pictures (models->texture_update changes it as it is shown); 0 its own again,
+	   as does the mod unloading. 1 done. */
+	int (*dress)(int player, SmsTexture texture);
+	/* (API 1.8; check size) A player's FLUDD posed this tick (ask each tick), as a mod's gun:
+	   SMS_POSE_STILL held still in view (not pumped by the game as it sprays), SMS_POSE_NOZZLE_OUT
+	   on his back its nozzle kept out (not put away); `pump` 0 to 1 its pump at that point of one
+	   (a shot's), -1 none; `hold` how far ahead it is held in view (0: set's own). 1 done. */
+	int (*pose)(int player, int flags, float pump, float hold);
+} SmsHeldFluddApi;
+
+/* held_fludd->pose's flags (API 1.8) */
+#define SMS_POSE_STILL 1
+#define SMS_POSE_NOZZLE_OUT 2
+
+/* ------------------------------------------------------------------ FLUDD's water drops (API 1.8) */
+
+/* api->water (SMS_API_HAS(api, water)): the drops of water FLUDD (and
+ * everything else that sprays the game's water) makes, flying until they
+ * land or end. A mod may make drops of its own, each carrying a number of
+ * the mod's (`tag`), follow them and move them, and learn which drop a hit
+ * came from (SMS_EV_OBJECT_HIT's sender). The game's drops have tag 0. */
+struct SmsWaterDrop {
+	uint32_t size;          /* sizeof, set before calling */
+	SmsVec3 position;
+	SmsVec3 velocity;       /* units a tick (emit: its way times its speed) */
+	float drop_size;        /* how big it is (drawn, and the goop it cleans) */
+	float hit_radius;       /* how far round it, and up and down, it reaches what it hits */
+	float hit_height;
+	int alive;              /* ticks it has left (emit: to live) */
+	int attack;             /* the game's attack (1..255: how hard it hits) */
+	uint32_t tag;           /* the mod's own number for it (emit sets it); 0 the game's */
+	int flags;              /* emit: the game's emit flags (TWaterEmitInfo's mFlag), 0 the stream's own */
+	int player;             /* whose: the player whose FLUDD made it (co-op: 0 or 1), -1 none; emit: the
+	                           player it is made for (its hits are theirs), -1 the one the game runs as */
+	float rate;             /* nozzle_drop: the tank's water one drop of its stream uses */
+	int landed;             /* get: 0 flying, 1 on the ground, 2 on a wall */
+	float clean;            /* get: how far round it washes goop off as it lands (its kind of drop's own) */
+	int unseen;             /* (API 1.8) left out of the water's drawing (a mod draws it itself) */
+};
+
+typedef struct SmsEvWaterEmit {
+	int player;             /* whose FLUDD (co-op: 0 or 1) */
+	int count;              /* drops asked for */
+	SmsWaterDrop drop;      /* the first of them. A handler may set its tag and unseen: the game's
+	                           drops then carry them (a mod's stream of its own look, FLUDD's own) */
+} SmsEvWaterEmit;
+
+/* SMS_EV_WATER_LAND (API 1.8): a drop touching the ground (as it first lands) or a wall */
+typedef struct SmsEvWaterLand {
+	int slot;               /* water->get's */
+	uint32_t tag;           /* its mod's number (0 the game's own) */
+	int player;             /* whose, -1 none */
+	SmsVec3 position;
+	SmsVec3 normal;         /* the ground's or the wall's way out */
+	int wall;               /* 1 a wall, 0 the ground */
+	SmsObject on;           /* what it landed on when that moves (a Phantamanta's back), else NULL */
+	float drop_size;
+} SmsEvWaterLand;
+
+typedef struct SmsWaterApi {
+	uint32_t size;
+	/* The drop a player's FLUDD makes now with the nozzle it has out, as
+	   its stream would (its place at the nozzle, way and speed, size, life,
+	   attack, reach, and its water). 0: no FLUDD (or no such player). */
+	int (*nozzle_drop)(int player, SmsWaterDrop* out);
+	/* Makes one drop: position, velocity, drop_size, hit_radius,
+	   hit_height, alive, attack (0: 1), tag, flags. SMS_EV_WATER_EMIT does
+	   not hear of it. Returns its slot, or -1 (no room: the game keeps
+	   256). */
+	int (*emit)(const SmsWaterDrop* drop);
+	/* The drops alive now, in slots 0..count()-1. A slot changes as drops
+	   before it end: keep a drop's tag, not its slot, from tick to tick. */
+	int (*count)(void);
+	int (*get)(int slot, SmsWaterDrop* out);
+	/* A drop's position, velocity, alive and tag (its drop_size too, if
+	   over 0). 0: no such slot. */
+	int (*set)(int slot, const SmsWaterDrop* in);
+	/* The slot of the drop a hit came from (SmsEvHit's sender), or -1. */
+	int (*drop_of)(SmsObject sender);
+	/* A player's FLUDD uses `drops` of its stream's drops' worth of water
+	   (as its stream does; none with infinite water). Returns the water
+	   left, -1 with no FLUDD. */
+	int (*use)(int player, int drops);
+	/* (API 1.8; check size) Co-op: where a point is seen in a view (0 player
+	   1's, 1 player 2's, as SmsEvDrawScene's). A first-person player's water
+	   comes out of the FLUDD in front of their face; the other player sees it
+	   come out of the FLUDD on their back, so a point near the first moves
+	   that way (less the further it is). 1 when it moved. */
+	int (*seen_at)(SmsVec3* at, int view);
+} SmsWaterApi;
+
+/* ------------------------------------------------------------------ actors (API 1.8) */
+
+/* api->actor (SMS_API_HAS(api, actor)): the stage's moving actors (its
+ * enemies, characters, items): how they move, what they are, what is near.
+ * SmsObject from events, game->find_object, or near(). */
+
+/* actor->flags: SMS_ACTOR_FLAG_* */
+#define SMS_ACTOR_FLAG_AIRBORNE 1u  /* off the ground (set: thrown up; the game's own fall brings it down) */
+#define SMS_ACTOR_FLAG_DEAD     2u  /* defeated or gone */
+#define SMS_ACTOR_FLAG_HIDDEN   4u  /* out of the stage for now */
+#define SMS_ACTOR_FLAG_WALKS    8u  /* an enemy that walks about by itself (Goombas, Strollin' Stus...), not one rooted,
+                                  flying, on a fence or a boss's part */
+#define SMS_ACTOR_FLAG_SMALL_ENEMY 16u /* one of the stage's small enemies (that the game defeats as a stomp) */
+#define SMS_ACTOR_FLAG_CHARACTER 32u   /* a friendly character (a Pianta, a Noki) */
+
+typedef struct SmsWaterMeter SmsWaterMeter; /* (API 1.8, below) */
+
+typedef struct SmsActorApi {
+	uint32_t size;
+	/* Its speed, units a tick. 0: not an actor that moves. */
+	int (*velocity)(SmsObject actor, SmsVec3* out);
+	int (*set_velocity)(SmsObject actor, const SmsVec3* v);
+	/* SMS_ACTOR_FLAG_* (0 for what is no actor). */
+	uint32_t (*flags)(SmsObject actor);
+	/* Sets (`on`) or clears (`off`) SMS_ACTOR_FLAG_AIRBORNE: 1 done. */
+	int (*set_flags)(SmsObject actor, uint32_t on, uint32_t off);
+	/* Defeats a small enemy as a stomp does (its own defeat, its coins).
+	   1 done. */
+	int (*defeat)(SmsObject actor);
+	/* Actors whose middle is within `radius` of p (across the ground and up
+	   and down), with any of the SMS_ACTOR_FLAG_* in `kinds` (0: any),
+	   not dead or hidden, into out (up to `most`); returns how many there
+	   are (may be more than `most`). */
+	int (*near)(const SmsVec3* p, float radius, uint32_t kinds, SmsObject* out, int most);
+	/* How far round it (radius) and how high (height) it is hit. */
+	int (*hit_size)(SmsObject actor, float* radius, float* height);
+	/* Moves it dx, dz across the ground now as the game moves actors: kept
+	   out of walls, sliding along them, and within the stage. Returns 1
+	   moved, 2 moved against a wall, 0 not (the stage's edge, no actor). */
+	int (*push)(SmsObject actor, float dx, float dz);
+	/* The game's own message (HIT_MESSAGE_*) to it, as from `sender` (an
+	   object, or 0: the player's Mario): what it makes of it (1 taken). */
+	int (*send)(SmsObject actor, SmsObject sender, uint32_t message);
+	/* An enemy the game defeats when it is thrown against a wall (Strollin'
+	   Stus rolling away from water) defeated so, now: 1 done, 0 not one of
+	   those (or already going). */
+	int (*wall_defeat)(SmsObject actor);
+	/* Its model drawn `scale` times its size about its middle (all of it
+	   alike), as it is posed each tick, until set back to 1 or it is gone.
+	   1 done. */
+	int (*set_model_scale)(SmsObject actor, float scale);
+	/* (API 1.8; check size) What a game object is: SMS_KIND_* (SMS_KIND_OTHER for anything else). */
+	int (*kind)(SmsObject object);
+	/* The boss or actor a hit part belongs to (Big Chain Chomp's body, Petey Piranha's head, a
+	   Phantamanta's wing, Proto Piranha's mouth, an Eely-Mouth tooth's Eely-Mouth); the object
+	   itself when it is no part. */
+	SmsObject (*owner)(SmsObject part);
+	/* Its hit parts (Eely-Mouth's teeth, Petey Piranha's head, Proto Piranha's mouth) into out
+	   (up to `most`); returns how many there are. */
+	int (*parts)(SmsObject object, SmsObject* out, int most);
+	/* How much water it still takes before it is beaten (SmsWaterMeter): Shadow Mario's meter,
+	   Big Chain Chomp's heat, a Phantamanta's hits, a tooth's dirt, Petey Piranha's thirst, Proto
+	   Piranha's sleep or its open mouth, a character's goop, a hiding picture's washing. 1 when
+	   it has one, 0 not. */
+	int (*water_meter)(SmsObject object, SmsWaterMeter* out);
+	/* Its meter set to `left` (0 beats it, as the game's own water would). `effects` 1: with the
+	   game's own sound and sparkle as water takes it down (a cleaned tooth, a cooled Chomp); 0
+	   quietly (as when the game's own drop hits it next, taking one more off itself). 1 done. */
+	int (*set_water_meter)(SmsObject object, int left, int effects);
+	/* Ticks till it takes water again (a Phantamanta's, a tooth's wait between hits) set: 1 done. */
+	int (*set_water_wait)(SmsObject object, int ticks);
+	/* Knocked as by a blast pushing `push` (units a tick): a ball or a fruit thrown that way and up
+	   (a fruit off its tree too). 1 done, 0 not one of those or not now (held, appearing, rotting). */
+	int (*knock)(SmsObject object, const SmsVec3* push);
+	/* Put at `at` (an enemy carried along a path of a mod's), turned to face `yaw` degrees (as
+	   SmsPlayer's yaw). 1 done. */
+	int (*set_position)(SmsObject actor, const SmsVec3* at);
+	int (*set_yaw)(SmsObject actor, float degrees);
+	/* How much faster it falls each tick (its own gravity), 0 none known */
+	float (*gravity)(SmsObject actor);
+	/* The game's own effect on it this tick (ask each tick it lasts): SMS_EFFECT_*. 1 done. */
+	int (*effect)(SmsObject actor, int effect);
+} SmsActorApi;
+
+/* actor->effect (API 1.8) */
+enum {
+	SMS_EFFECT_BURNING = 1, /* flames on it (a burning Strollin' Stu's) */
+	SMS_EFFECT_SHOCKED = 2, /* sparks on it (Mario's own when shocked) */
+	SMS_EFFECT_SMOKE = 3    /* a puff of smoke (a fire put out): once */
+};
+
+/* actor->kind (API 1.8) */
+enum {
+	SMS_KIND_OTHER = 0,
+	SMS_KIND_SMALL_ENEMY = 1,
+	SMS_KIND_CHARACTER = 2,       /* a friendly character (a Pianta, a Noki) */
+	SMS_KIND_SHADOW_MARIO = 3,
+	SMS_KIND_BIG_CHAIN_CHOMP = 4, /* or a part of its body */
+	SMS_KIND_PHANTAMANTA = 5,     /* or a wing */
+	SMS_KIND_EELY_MOUTH = 6,
+	SMS_KIND_EELY_MOUTH_TOOTH = 7,
+	SMS_KIND_PROTO_PIRANHA = 8,   /* or its mouth */
+	SMS_KIND_PETEY_PIRANHA = 9,   /* or his head */
+	SMS_KIND_HIDING_PICTURE = 10, /* a picture water washes off to find what it hides (a red X, an M) */
+	SMS_KIND_BALL = 11            /* a ball or a fruit */
+};
+
+/* actor->water_meter (API 1.8). Set `size` to sizeof before calling. */
+struct SmsWaterMeter {
+	uint32_t size;
+	int left, most; /* water still to take (0 beaten), of `most` */
+	int open;       /* 1 it takes water now (Shadow Mario running his race, Petey's mouth open, a tooth
+	                   not between hits, a character not talking); 0 not */
+	int wait;       /* ticks till it takes water again (0 now) */
+	SmsVec3 spot;   /* where the water must reach (Shadow Mario's middle, Petey's or Proto Piranha's
+	                   open mouth, its goop pile) */
+	float spot_radius;
+};
+
+#define SMS_ZOOM_FIRST_PERSON 1 /* set_zoom's flags: switch into first person for the zoom (asked from third person) */
+#define SMS_ZOOM_SCOPE 2 /* set_zoom's flags: a scope is drawn over the view (a crosshair left out); a mod draws it
+                          (an older game itself, when get_state's game_scope says so) */
+
+/* ------------------------------------------------------------------ a mod's own models (API 1.8) */
+
+/* api->models (SMS_API_HAS(api, models)): models of a mod's own, made of
+ * triangles whose corners carry their colours (their light baked in, as the
+ * GameCube's low-poly games looked), drawn with the scene (in front of and
+ * behind it by its depth), in each view (split-screen co-op: both halves).
+ * A model is drawn where a frame of the game puts it: the world, or a
+ * player's FLUDD, held in view or on his back (the model then moves with it
+ * as it is drawn, never a frame behind). Drawn only the tick it is asked
+ * for: ask each tick (SMS_EV_TICK). Nothing is drawn till a mod asks. */
+typedef struct SmsCorner {
+	float x, y, z;
+	uint8_t r, g, b, a;
+} SmsCorner;
+typedef uint32_t SmsMesh; /* a model made with models->create; 0 = none */
+/* a corner of a triangle with a picture (models->draw_textured): where, where in the picture (u, v:
+   0 to 1 across it, repeating past), and its colour (times the picture's) */
+typedef struct SmsTexCorner {
+	float x, y, z, u, v;
+	uint8_t r, g, b, a;
+} SmsTexCorner;
+
+/* models->draw's and ->frame's frames */
+enum {
+	SMS_FRAME_WORLD = 0,     /* the world itself */
+	SMS_FRAME_HELD = 1,      /* FLUDD held in view (first person, held_fludd->set): its nozzle's tip, x right,
+	                            y the way it points (to the view's aim, kicked up by held_fludd->kick), z up; drawn
+	                            in that player's own view only */
+	SMS_FRAME_BACK = 2,      /* FLUDD on his back (its nozzle's joint): x right, y the way he faces, z up, leaning
+	                            and lying with him; drawn in the views where it is on his back (co-op: a player's
+	                            held FLUDD is on his back in the other's view) */
+	SMS_FRAME_BACK_LEVEL = 3 /* the same place, turned level: y ahead across the ground, z up (lying down: y the way
+	                            his head is, z off his back) */
+};
+
+typedef struct SmsModelApi {
+	uint32_t size;
+	/* A model of `count` corners (a multiple of 3: each three a triangle), in its own units, copied.
+	   0 when it could not be made. Gone when the mod unloads. */
+	SmsMesh (*create)(SmsMod* mod, const SmsCorner* corners, int count);
+	void (*destroy)(SmsMod* mod, SmsMesh mesh);
+	/* Drawn this tick in `frame` (SMS_FRAME_*) of `player` (the world's: any), at `place` in it: its
+	   own units to the frame's (rows: x, y, z; the last column where its origin is). 1 asked. */
+	int (*draw)(SmsMesh mesh, int frame, int player, const float place[3][4]);
+	/* Triangles in the world drawn this tick only (`count` corners, a multiple of 3; copied). */
+	int (*draw_triangles)(const SmsCorner* corners, int count);
+	/* Where a frame of a player's is in the world, as it was last drawn (rows: x, y, z, its axes in
+	   the first three columns, its origin in the last): 1, 0 when it is not there (not held, no FLUDD). */
+	int (*frame)(int frame, int player, float out[3][4]);
+	/* A player's FLUDD left out of drawing this tick, where it is held in view (1 << SMS_FRAME_HELD)
+	   and on his back (1 << SMS_FRAME_BACK), ORed (a model of a mod's own in its place). */
+	void (*hide_fludd)(int player, int frames);
+	/* A picture of the mod's own (RGBA, 8 bits each, rows from the top; `w` and `h` powers of two up
+	   to 512), copied, repeating across the triangles it is laid on. 0 when it could not be made.
+	   Gone when the mod unloads. */
+	SmsTexture (*texture_create)(SmsMod* mod, const uint8_t* rgba, int w, int h);
+	/* Its picture changed (the same size): what it is laid on shows the new one */
+	int (*texture_update)(SmsMod* mod, SmsTexture texture, const uint8_t* rgba);
+	void (*texture_destroy)(SmsMod* mod, SmsTexture texture);
+	/* Triangles in the world with a picture (`texture`, 0 none: their colours alone), its colour
+	   times each corner's, drawn this tick (in SMS_EV_DRAW_SCENE: at once, in that view): `blend`
+	   SMS_BLEND_*. Copied. */
+	int (*draw_textured)(const SmsTexCorner* corners, int count, SmsTexture texture, int blend);
+} SmsModelApi;
+
+/* models->draw_textured's blending (API 1.8) */
+enum {
+	SMS_BLEND_SOLID = 0, /* hides what is behind it (in front of and behind the scene by its depth) */
+	SMS_BLEND_ALPHA = 1, /* see-through by its alpha (behind the scene's own in front of it) */
+	SMS_BLEND_ADD = 2    /* added to what is behind it: light, glow, flames */
+};
+
 /* ------------------------------------------------------------------ reflections (combined-plus) */
 
 /* api->reflections (SMS_API_HAS(api, reflections)): the port's puddle and
@@ -1868,105 +2314,6 @@ typedef struct SmsReflectionsApi {
 	int (*range)(int option, int* min, int* max, int* original);
 } SmsReflectionsApi;
 
-/* ------------------------------------------------------------------ FLUDD held in view (first person) */
-
-/* api->held_fludd (API 1.7; SMS_API_HAS(api, held_fludd), check `magic` too): FLUDD
- * drawn in front of the view, held like a gun, for a first-person camera.
- * The game's own FLUDD model, moved each frame to `right`, `down` and
- * `forward` units from the camera (its nozzle's tip there), at `scale` of its
- * size, pointing where the view looks (at a point `aim` units ahead, the
- * middle of the view); the water comes out of its nozzle there, towards that
- * point. Only with the spray and underwater nozzles and off Yoshi; with the
- * others FLUDD is drawn as the game does. It is drawn even with Mario's models
- * left out (SMS_EV_HIDE_PLAYER_MODEL, SMS_PLAYER_PART_FLUDD). Off when the mod
- * that set it unloads. */
-#define SMS_HELD_FLUDD_MAGIC 0x444C4648u /* "HFLD" */
-/* held_fludd->set_weapon_stats: a spray weapon's numbers. Set `size` to sizeof(SmsSprayStats). */
-typedef struct SmsSprayStats {
-	uint32_t size;
-	float every;     /* seconds between shots while R is held */
-	float push;      /* how hard it shoves an enemy, times the game's own (1) */
-	float range;     /* how far it reaches, times the game's own (1) */
-	int to_defeat;   /* shots to defeat an enemy (with SMS_SPRAY_DEFEAT) */
-	int water;       /* the tank's water a shot uses, in the stream's drops */
-	float hit_size;  /* the rifle's: how much bigger enemies count as to hit, times its own (1) */
-	float burst;     /* the bazooka's: its burst's size, times its own (1) */
-	float lift;      /* the bazooka's: how high it throws enemies, times its own (1) */
-	float drop_size; /* the size of its drops, times its own (1) */
-	float self_jump; /* the bazooka's: how hard its burst throws Mario (a rocket jump), times its own (1); 0 not */
-	float view_distance; /* first person: how far ahead of the camera it is held, as set's `forward` (right and down
-	                        go with it); 0 the first-person mod's own */
-	float far_scale;     /* long range (the same for every weapon, the last one set): enemies and characters drawn and
-	                        moving this many times further than the game's own distance (up to 20), so they can be hit
-	                        there; 1 (or 0) the game's own */
-	float shadow_damage; /* Shadow Mario (the same for every weapon, the last one set): how much of his water meter a
-	                        weapon's hit takes, times the game's own (1, a Rifle shot a third of it); 0 the game's own */
-	float goop_area;     /* the bazooka's: the round its burst washes goop off in, times its own (860 out from its middle); 0 its
-	                        burst's size's (check size) */
-} SmsSprayStats;
-
-/* held_fludd->get_state: what a first-person mod and a weapons mod set, for each other. */
-typedef struct SmsHeldFluddState {
-	uint32_t size;    /* sizeof(SmsHeldFluddState) */
-	int first_person; /* a first-person mod's camera is on (set_view) */
-	int held;         /* FLUDD is held in view now (set) */
-	int weapon;       /* the weapon chosen (set_weapon), SMS_SPRAY_NORMAL for FLUDD's own */
-	float zoom_fovy;  /* the zoom asked for (set_zoom): the field of view to narrow the camera to; 0 none */
-	int zoom_flags;   /* SMS_ZOOM_FIRST_PERSON, SMS_ZOOM_SCOPE */
-	int game_scope;   /* 1: the game draws SMS_ZOOM_SCOPE's scope itself, over the picture and under its HUD (a
-	                     weapons mod leaves its own out); 0 an older game, where a mod draws it */
-} SmsHeldFluddState;
-
-typedef struct SmsHeldFluddApi {
-	uint32_t size;
-	uint32_t magic; /* SMS_HELD_FLUDD_MAGIC */
-	/* on 1 holds it, 0 lets it go back on his back; returns 1 if Mario is there */
-	int (*set)(int on, float right, float down, float forward, float scale, float aim);
-	/* While it is held, the spray nozzle fires as a weapon (SMS_SPRAY_*) instead of its stream,
-	   while R is held: still FLUDD's water. A weapon's drops shove the small enemies they reach
-	   (harder or softer by the weapon), and with SMS_SPRAY_DEFEAT in `flags` defeat them after a
-	   few hits, as a stomp. SMS_SPRAY_NORMAL is the game's own stream: it never shoves or defeats.
-	   (Check size: SMS_API_HAS(held_fludd, set_weapon).) */
-	int (*set_weapon)(int weapon, int flags);
-	/* A weapon's numbers (SMS_SPRAY_SHOTGUN to SMS_SPRAY_BAZOOKA), in place of the game's own;
-	   NULL puts them back. For SMS_SPRAY_NORMAL only `every` is taken: the seconds of spraying one
-	   enemy (with SMS_SPRAY_DEFEAT_NORMAL) that defeat it. Returns 1 if taken. (Check size: SMS_API_HAS(held_fludd, set_weapon_stats).) */
-	int (*set_weapon_stats)(int weapon, const SmsSprayStats* stats);
-	/* For a first-person mod and a weapons mod to work together, each its own mod: a first-person
-	   mod says when its camera is on (whether FLUDD is held or not); a weapons mod asks for a zoom
-	   (`fovy` the field of view, 0 none; SMS_ZOOM_FIRST_PERSON in `flags`: switch into first person
-	   for it, SMS_ZOOM_SCOPE: a scope is drawn, leave a crosshair out); get_state tells each what
-	   the other set. The game itself does nothing with them. Reset when the mod that set them unloads.
-	   (Check size: SMS_API_HAS(held_fludd, get_state).) */
-	int (*set_view)(int on);
-	int (*set_zoom)(float fovy, int flags);
-	int (*get_state)(SmsHeldFluddState* state);
-	/* Mouse look for a first-person mod: the mouse's motion in pixels since the last call (right and
-	   down positive) into *dx, *dy; returns 1 while the game has the mouse captured (its mouse camera,
-	   F10), 0 when not (the motion is then 0). (Check size: SMS_API_HAS(held_fludd, take_mouse).) */
-	int (*take_mouse)(float* dx, float* dy);
-} SmsHeldFluddApi;
-
-enum { SMS_SPRAY_NORMAL = 0, SMS_SPRAY_SHOTGUN = 1, SMS_SPRAY_RIFLE = 2, SMS_SPRAY_BAZOOKA = 3, SMS_SPRAY_SMG = 4 };
-#define SMS_SPRAY_DEFEAT 1 /* set_weapon's flags: a weapon may defeat enemies */
-#define SMS_SPRAY_DEFEAT_NORMAL 4 /* set_weapon's flags: the normal spray may defeat enemies too (a short burst on one) */
-#define SMS_SPRAY_THIRD_PERSON 8 /* set_weapon's flags: the weapon fires with FLUDD on his back too (not held in view): from its nozzle, the way he faces, its nozzle out and pumping as it fires */
-#define SMS_ZOOM_FIRST_PERSON 1 /* set_zoom's flags: switch into first person for the zoom (asked from third person) */
-#define SMS_ZOOM_SCOPE 2 /* set_zoom's flags: a scope is drawn over the view (a crosshair left out); the game draws it
-                          when get_state's game_scope says so */
-#define SMS_SPRAY_THIRD_PERSON_MODEL 16 /* set_weapon's flags: with SMS_SPRAY_THIRD_PERSON, all of FLUDD on his back drawn as a pack of the weapon's colours with the weapon on it */
-#define SMS_SPRAY_BOSSES 32 /* set_weapon's flags: the weapons made for bosses (Proto Piranha's mouth and pile, Petey Piranha filled faster, ...); not Shadow Mario (shadow_damage) */
-#define SMS_SPRAY_AIR_FORWARD 64 /* set_weapon's flags: a bazooka hit on an enemy already in the air pushes it on forward, away from Mario, not up again */
-#define SMS_SPRAY_SHOT_WATER 128 /* set_weapon's flags: the bazooka's shot seen flying to where it bursts, a streak of water (only to look at) */
-#define SMS_SPRAY_SHOT_BALLOON 256 /* set_weapon's flags: ...as a green water balloon that pops there (SMS_SPRAY_SHOT_WATER left out) */
-#define SMS_SPRAY_SHOT_BIG 512 /* set_weapon's flags: with SMS_SPRAY_SHOT_BALLOON, a big balloon (not one the size of the bazooka's muzzle) */
-#define SMS_SPRAY_ROCKET_HURT 1024 /* set_weapon's flags: each rocket jump costs Mario a point of health (as the game takes it) */
-#define SMS_SPRAY_HEARTS 2048 /* set_weapon's flags: an enemy a weapon defeats drops a heart beside its coin, a point of health when Mario touches it */
-#define SMS_SPRAY_ROCKET_OUCH 4096 /* set_weapon's flags: with SMS_SPRAY_ROCKET_HURT, Mario cries out in pain as a rocket jump hurts him */
-#define SMS_SPRAY_VOICE_SHIFT 13 /* set_weapon's flags: volume << 13, SMS_SPRAY_ROCKET_OUCH's cries' volume in percent (7 bits: 1 to 100); 0 as recorded */
-#define SMS_SPRAY_GOOP_SHIFT 20 /* set_weapon's flags: (percent / 10) << 20, how much goop the weapons clean, 100 the game's own (7 bits: up to 1270); 0 the game's own */
-#define SMS_SPRAY_MUTE_MARIO (1 << 27) /* set_weapon's flags: Mario's own voice left out (a weapons mod's rocket jump key held: its cries play alone) */
-
 struct SmsApi {
 	uint32_t size;
 	uint16_t major, minor;
@@ -1985,7 +2332,10 @@ struct SmsApi {
 	   of its minor version (check api->size). */
 	uint32_t prerelease;
 	const SmsFilesApi* files;       /* API 1.5 (SMS_API_HAS(api, files)) */
-	const SmsHeldFluddApi* held_fludd;    /* API 1.7 (SMS_API_HAS(api, held_fludd); check its magic) */
+	const SmsHeldFluddApi* held_fludd; /* API 1.7 (SMS_API_HAS(api, held_fludd); check its magic) */
+	const SmsWaterApi* water;       /* API 1.8 (SMS_API_HAS(api, water)) */
+	const SmsActorApi* actor;       /* API 1.8 (SMS_API_HAS(api, actor)) */
+	const SmsModelApi* models;      /* API 1.8 (SMS_API_HAS(api, models)) */
 	const SmsReflectionsApi* reflections; /* combined-plus (SMS_API_HAS(api, reflections)) */
 };
 

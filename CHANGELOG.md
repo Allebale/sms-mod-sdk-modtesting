@@ -6,6 +6,22 @@ Pre-releases (`v1.5.0-beta.1`, `-beta.2`, ...) lead to a release and are listed 
 
 ## 1.8.0 (in beta)
 
+### combined-plus (Allebale's fork, not in the official SDK)
+
+- `api->reflections` (`SmsReflectionsApi`; `SMS_API_HAS(api, reflections)`): the port's puddle and water effects, set by a mod: how long FLUDD's puddles last, characters, objects and the stage itself in puddles and water, the stage's water reflecting, ripples, sun glints, blur, deep water, wet footprints and each surface's strength, and a wet Mario (`SMS_REFLECT_*`). Each starts as the original game has it and goes back so when the mod that set it unloads.
+- In Lua: `sms.set_reflection(name, value)` and `sms.reflection(name)`.
+
+### 1.8.0-beta.2
+
+General tools for a mod's own weapons, effects and models: what made the game's FLUDD weapons (1.7) is now open to any mod, and those weapons are a mod of their own (Allebale's FLUDD Weapons).
+
+- `api->water` (`SmsWaterApi`): FLUDD's drops, a mod's own drops (tagged, drawn by the mod or the game), the drops flying, the water used, where a drop is seen in each co-op view.
+- `api->actor` (`SmsActorApi`): actors' motion, flags, size and kind (`SMS_KIND_*`), the actors round a point, defeats, pushes, hit messages, model sizes, the water a boss, character or hiding picture still takes (`SmsWaterMeter`), balls knocked, the game's flames, sparks and smoke on them.
+- `api->models` (`SmsModelApi`): a mod's own models and pictures, drawn in the world or on FLUDD (held in view, on his back), FLUDD left out in their place.
+- `game->particle`, `ray`, `splash`, `clean_goop`, `wall_at`, `out_of_walls`, `set_view_distance`; `audio->play_sound_at`, `play_clip`; `player->set_fall_start`, `burn`, `hurt`; `SmsPlayer`'s `gravity`, `intended_yaw`, `intended_speed`, `invincible`; `held_fludd->kick`, `aim`, `pose`, `dress`.
+- Events: `SMS_EV_WATER_EMIT`, `SMS_EV_WATER_LAND`, `SMS_EV_OBJECT_HIT_DONE`, `SMS_EV_DRAW_SCENE`, `SMS_EV_DRAW_UNDER_HUD`.
+- Gone: `held_fludd->set_weapon` and `set_weapon_stats` (their places in the table are NULL), `SmsSprayStats` and the `SMS_SPRAY_*` numbers; `SmsHeldFluddState.weapon` is `unused`. The game no longer has weapons of its own; only the FLUDD Weapons mod used them, and it is built on the tools above. A mod built against 1.7's names needs these out to build.
+
 ### 1.8.0-beta.1
 
 - `SmsGameState.select_area`, `.select_episode` (check `size`): while a world's episode select is up, its world and the episode its cursor is on (the one chosen, once A is pressed); -1 at any other time. The select is game mode `SMS_MODE_TITLE`, and `SMS_EV_DRAW` comes over it, so a mod can show more of the episode under the cursor (where a mod that shuffles stages takes the player, say). In Lua, `sms.state()`'s `select_area` and `select_episode`.
@@ -15,22 +31,6 @@ Pre-releases (`v1.5.0-beta.1`, `-beta.2`, ...) lead to a release and are listed 
 - The lua mod is version 1.8.0-beta.1.
 
 ## 1.7.0
-
-### combined-plus (Allebale's fork, not in the official SDK)
-
-- `api->reflections` (`SmsReflectionsApi`; `SMS_API_HAS(api, reflections)`): the port's puddle and water effects, set by a mod: how long FLUDD's puddles last, characters, objects and the stage itself in puddles and water, the stage's water reflecting, ripples, sun glints, blur, deep water, wet footprints and each surface's strength, and a wet Mario (`SMS_REFLECT_*`). Each starts as the original game has it and goes back so when the mod that set it unloads.
-- In Lua: `sms.set_reflection(name, value)` and `sms.reflection(name)`.
-- `api->held_fludd` (`SmsHeldFluddApi`; `SMS_API_HAS(api, held_fludd)` and its `magic`): FLUDD held in front of the view like a gun, for a first-person camera; the water comes out of its nozzle there, towards the middle of the view.
-- `held_fludd->set_weapon(weapon, flags)` (`SMS_SPRAY_*`): the held FLUDD's spray fires as a shotgun, rifle, submachine gun or bazooka of water; their drops shove small enemies, and with `SMS_SPRAY_DEFEAT` defeat them after a few hits. The normal spray never does either.
-- `SmsSprayStats.self_jump`: the bazooka's rocket jump, its burst throwing Mario away from it (0, and from mods built before it, none).
-- The bazooka's rocket jump (`self_jump`) throws Mario only in first person.
-- `held_fludd` `set_view`, `set_zoom`, `get_state` (`SmsHeldFluddState`, `SMS_ZOOM_*`): a first-person mod and a weapons mod, each its own, work together through them.
-- `SmsSprayStats.view_distance` (each weapon's own hold distance in first person) and `far_scale` (long range: enemies and characters drawn and moving further away).
-- `SMS_SPRAY_THIRD_PERSON` in `set_weapon`'s flags: the weapon fires in third person too, with FLUDD on his back, the way Mario faces (aimed at a small enemy ahead). FLUDD's nozzle stays out while R is held and pumps as each shot goes.
-- `SMS_SPRAY_THIRD_PERSON_MODEL` in `set_weapon`'s flags: in third person all of FLUDD drawn as a pack of the weapon's colours with the weapon on it over his shoulder.
-- `held_fludd->set_weapon_stats(weapon, stats)` (`SmsSprayStats`): a spray weapon's fire rate, push, range, shots to defeat, water per shot, the rifle's hit size and the bazooka's burst, as a mod sets them.
-
-### 1.6.0-beta.2
 
 FLUDD held in view and FLUDD's spray weapons, for first-person and weapons mods (Allebale's First Person and FLUDD Weapons).
 

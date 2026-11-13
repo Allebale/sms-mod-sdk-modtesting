@@ -378,7 +378,8 @@ Notes:
 | `api->net` | (1.2) the multiplayer game: its players, and on the host the commands to their games ([Server mods](#server-mods)) |
 | `api->world` | (1.4) the game's worlds, their areas and episodes, and its camera cutscenes ([world](#world)) |
 | `api->files` | (1.5) the mod's own files beside the memory card, and per save file ([files](#files)) |
-| `api->held_fludd` | (1.7) FLUDD held in view like a gun, and its spray as weapons, for first-person and weapons mods ([held_fludd](#held_fludd)) |
+| `api->held_fludd` | (1.7) FLUDD held in view like a gun, for first-person mods and mods with guns of their own ([held_fludd](#held_fludd)) |
+| `api->water`, `api->actor`, `api->models` | (1.8) FLUDD's water drops, the game's actors, and a mod's own models ([water, actor, models](#water-actor-models)) |
 
 Every table starts with `size`, the size the game was built with. Tables only grow at their ends, so a mod checks a function from a later minor version is there with `SMS_API_HAS(api->draw, some_new_function)` before calling it.
 Structs a mod passes in for the game to fill (`SmsGameState`, `SmsPlayer`, `SmsCamera`, `SmsPad`) start with a `size` the mod sets to `sizeof` the struct; the game fills only that much, so an old mod works with a newer game and the other way round.
@@ -521,6 +522,57 @@ static int onSaveFile(SmsMod* mod, SmsEvent* ev, void* user)
 
 `core->data_dir` is still the place for what is not the player's progress (caches, logs); `config` keeps settings there.
 
+### held_fludd
+
+API 1.7 (`SMS_API_HAS(api, held_fludd)`, and check its `magic` is `SMS_HELD_FLUDD_MAGIC`): FLUDD drawn in front of the view and held like a gun, for a first-person camera. C and C++ mods; the lua mod does not offer it. Nothing changes in the game unless a mod calls these, and what a mod set goes when it unloads. `include/sms_mod.h` has every field.
+
+| Function | |
+| --- | --- |
+| `set(on, right, down, forward, scale, aim)` | 1 holds FLUDD `right`, `down` and `forward` units from the camera (its nozzle's tip there), at `scale` of its size, pointing at a point `aim` units ahead, the middle of the view; its water comes from the nozzle there. 0 puts it back on Mario. Returns 1 if Mario is there. Only with the spray and underwater nozzles and off Yoshi. It is drawn even with Mario's models left out (`SMS_EV_HIDE_PLAYER_MODEL`, `SMS_PLAYER_PART_FLUDD`) |
+| `set_view(on)` | a first-person mod says its camera is on, whether FLUDD is held or not |
+| `set_zoom(fovy, flags)` | a mod with a gun asks for a zoom: `fovy` the field of view, 0 none. `SMS_ZOOM_FIRST_PERSON` switches into first person for it, `SMS_ZOOM_SCOPE` means a scope is drawn, so leave a crosshair out |
+| `get_state(state)` | what each mod set, for the other (`SmsHeldFluddState`; set its `size`) |
+| `take_mouse(dx, dy)` | the mouse's motion in pixels since the last call, for a first-person mod's mouse look (right and down positive). Returns 1 while the game has the mouse captured (its mouse camera, F10), 0 when not |
+| `players()`, `player()`, `select_player(p)`, `player_view(p, ...)` | split-screen co-op: two players, each with their own Mario, camera and half of the screen; `select_player` makes `api->player` and this table act on one |
+| `kick(amount)`, `aim(eye, forward)` | (1.8) a shot's recoil for the held FLUDD (0 to 1); where the held view aims from and its way |
+| `pose(player, flags, pump, hold)` | (1.8) FLUDD posed this tick as a mod's gun: `SMS_POSE_STILL` held still in view, `SMS_POSE_NOZZLE_OUT` its nozzle kept out on his back; `pump` a pump's point (0 to 1, -1 none); `hold` how far ahead it is held |
+| `dress(player, texture)` | (1.8) FLUDD shown in a mod's picture (`models->texture_create`), 0 its own |
+
+A first-person mod and a mod with a gun can each be their own mod: `set_view` and `set_zoom` are how they tell each other what they are doing, through `get_state`. The game does not switch the camera or zoom for them; the first-person mod does that when it sees the zoom asked for. (1.7's `set_weapon` and `set_weapon_stats`, the game's own weapons, are gone in 1.8: their places in the table are NULL. Those weapons are a mod of their own now, made with the tools below.)
+
+### water, actor, models
+
+API 1.8: general tools for a mod's own weapons, effects and models. Check each table (`SMS_API_HAS(api, water)`, `actor`, `models`) and, for what came later in 1.8, `SMS_API_HAS(api->actor, knock)` and the like. Nothing happens in the game until a mod calls them; a mod's view distance, model sizes, models and pictures go when it unloads.
+
+| `api->water` | |
+| --- | --- |
+| `nozzle_drop(player, out)` | the drop a player's FLUDD makes now with its nozzle (`SmsWaterDrop`): its start, way and speed, size, reach, the water one drop uses |
+| `emit(drop)` | a drop of the mod's own; `tag` a number of the mod's for it, `unseen` 1 to leave it out of the water's drawing (the mod draws it) |
+| `count()`, `get(slot, out)`, `set(slot, in)`, `drop_of(sender)` | the drops flying now, and which drop a hit came from (`SMS_EV_OBJECT_HIT`'s sender) |
+| `use(player, drops)` | FLUDD's water used as by so many drops |
+| `seen_at(at, view)` | co-op: where a point is seen in a view; a first-person player's stream, seen by the other, comes off the FLUDD on their back (draw your own drops there) |
+
+| `api->actor` | |
+| --- | --- |
+| `velocity`, `set_velocity`, `flags`, `set_flags` (`SMS_ACTOR_FLAG_*`), `hit_size`, `gravity` | an actor's motion and state |
+| `near(p, radius, kinds, out, most)` | the actors round a point |
+| `defeat`, `wall_defeat`, `send(obj, sender, message)` | defeated as by a stomp, or squashed against a wall; a hit message as the game's own |
+| `push(obj, dx, dz)`, `set_position`, `set_yaw`, `set_model_scale` | moved across the ground (kept out of walls), placed, turned, its model scaled (a swell and pop) |
+| `kind`, `owner`, `parts` | what an object is (`SMS_KIND_*`: Shadow Mario, the bosses, characters, hiding pictures, balls), the boss a hit part is of, a boss's parts |
+| `water_meter`, `set_water_meter`, `set_water_wait` | the water a boss, a character or a hiding picture still takes before it is beaten (`SmsWaterMeter`), with the game's own effects as it is |
+| `knock(obj, push)` | a ball or fruit thrown as by a blast |
+| `effect(obj, SMS_EFFECT_*)` | the game's flames, sparks or smoke on it |
+
+| `api->models` | |
+| --- | --- |
+| `create`, `destroy` | a model of the mod's own: triangles whose corners carry their colours (`SmsCorner`) |
+| `draw(mesh, frame, player, place)` | drawn this tick in a frame: the world, FLUDD held in view (`SMS_FRAME_HELD`) or on his back (`SMS_FRAME_BACK`, `_BACK_LEVEL`), moving with it as it is drawn |
+| `draw_triangles`, `draw_textured` | triangles in the world this tick; with a picture and blending (`SMS_BLEND_*`) |
+| `frame(frame, player, out)` | where a frame is in the world |
+| `hide_fludd(player, frames)` | FLUDD left out this tick where a mod's model takes its place |
+| `texture_create`, `texture_update`, `texture_destroy` | pictures of the mod's own (RGBA) |
+
+More of 1.8: `game->particle`, `ray`, `splash`, `clean_goop`, `wall_at`, `out_of_walls`, `set_view_distance` (enemies seen and moving further away); `audio->play_sound_at`, `play_clip` (a mod's own sound); `player->set_fall_start`, `burn`, `hurt` (damage the game's own way, so 0 health loses a life), and `SmsPlayer`'s `gravity`, `intended_yaw`, `intended_speed`, `invincible`. Events: `SMS_EV_WATER_EMIT` (a player's FLUDD about to spray: cancel it, or tag its drops), `SMS_EV_WATER_LAND` (a drop landing), `SMS_EV_OBJECT_HIT_DONE` (after a hit), `SMS_EV_DRAW_SCENE` (each view as its scene is drawn: draw at once there), `SMS_EV_DRAW_UNDER_HUD` (each view before the HUD: a scope, say).
 ### reflections
 
 combined-plus, not in the official SDK (`SMS_API_HAS(api, reflections)`): the port's puddle and water effects. The game draws them; a mod (a graphics mod, a "puddles" mod with its own settings in the Mods menu) chooses how. Each option is a number, `SMS_REFLECT_*`; every one starts as the original game has it, and goes back so when the mod that set it unloads.
@@ -554,22 +606,6 @@ combined-plus, not in the official SDK (`SMS_API_HAS(api, reflections)`): the po
 api->reflections->set(mod, SMS_REFLECT_WATER, 1);
 api->reflections->set(mod, SMS_REFLECT_BLUR, 125);
 ```
-
-### held_fludd
-
-API 1.7 (`SMS_API_HAS(api, held_fludd)`, and check its `magic` is `SMS_HELD_FLUDD_MAGIC`): FLUDD drawn in front of the view and held like a gun, for a first-person camera, and FLUDD's spray fired as weapons. C and C++ mods; the lua mod does not offer it. Nothing changes in the game unless a mod calls these, and what a mod set goes when it unloads. `include/sms_mod.h` has every field.
-
-| Function | |
-| --- | --- |
-| `set(on, right, down, forward, scale, aim)` | 1 holds FLUDD `right`, `down` and `forward` units from the camera (its nozzle's tip there), at `scale` of its size, pointing at a point `aim` units ahead, the middle of the view; its water comes from the nozzle there. 0 puts it back on Mario. Returns 1 if Mario is there. Only with the spray and underwater nozzles and off Yoshi. It is drawn even with Mario's models left out (`SMS_EV_HIDE_PLAYER_MODEL`, `SMS_PLAYER_PART_FLUDD`) |
-| `set_weapon(weapon, flags)` | while it is held, the spray nozzle fires as `SMS_SPRAY_SHOTGUN`, `_RIFLE`, `_SMG` or `_BAZOOKA` while R is held, still using FLUDD's water; `SMS_SPRAY_NORMAL` is the game's own stream. Flags: `SMS_SPRAY_DEFEAT` (a weapon may defeat enemies; its drops always shove the small ones they reach), `SMS_SPRAY_DEFEAT_NORMAL` (so may the normal spray), `SMS_SPRAY_THIRD_PERSON` (it fires with FLUDD on his back too), `SMS_SPRAY_THIRD_PERSON_MODEL` (and FLUDD is drawn as a pack with the weapon on it) |
-| `set_weapon_stats(weapon, stats)` | a weapon's numbers (`SmsSprayStats`; set its `size`) in place of the game's own: fire rate, push, range, shots to defeat, water, drop size and each weapon's own. NULL puts them back. For `SMS_SPRAY_NORMAL` only `every` is taken: the seconds of spraying one enemy that defeat it. `far_scale` and `shadow_damage` are the same for every weapon, the last one set |
-| `set_view(on)` | a first-person mod says its camera is on, whether FLUDD is held or not |
-| `set_zoom(fovy, flags)` | a weapons mod asks for a zoom: `fovy` the field of view, 0 none. `SMS_ZOOM_FIRST_PERSON` switches into first person for it, `SMS_ZOOM_SCOPE` means a scope is drawn, so leave a crosshair out |
-| `get_state(state)` | what each mod set, for the other (`SmsHeldFluddState`; set its `size`). `game_scope` 1: the game draws `SMS_ZOOM_SCOPE`'s scope itself, over the picture and under its HUD, so a weapons mod leaves its own out |
-| `take_mouse(dx, dy)` | the mouse's motion in pixels since the last call, for a first-person mod's mouse look (right and down positive). Returns 1 while the game has the mouse captured (its mouse camera, F10), 0 when not |
-
-A first-person mod and a weapons mod can each be their own mod: `set_view` and `set_zoom` are how they tell each other what they are doing, through `get_state`. The game does not switch the camera or zoom for them; the first-person mod does that when it sees the zoom asked for.
 
 ### draw, input, config, audio
 
