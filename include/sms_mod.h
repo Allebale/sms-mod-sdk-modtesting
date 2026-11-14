@@ -2314,6 +2314,35 @@ typedef struct SmsReflectionsApi {
 	int (*range)(int option, int* min, int* max, int* original);
 } SmsReflectionsApi;
 
+/* ------------------------------------------------------------------ grass (Remastered) */
+
+/* api->grass (SMS_API_HAS(api, grass), and check its magic): Super Mario Sunshine
+ * Remastered's 3D Grass, for a mod's own effects on it. Nothing here does
+ * anything by itself, or with 3D Grass off. A mod built with another SDK finds
+ * the table right after `reflections` (two pointers after `models`). */
+#define SMS_GRASS_MAGIC 0x53524747u /* "GGRS" */
+typedef struct SmsGrassApi {
+	uint32_t size;
+	uint32_t magic; /* SMS_GRASS_MAGIC */
+	/* The blades within `r` of (x, z) pressed flat, as FLUDD's spray leaves
+	   them; they rise again by themselves, so call it each tick they should
+	   stay down. */
+	void (*press)(float x, float y, float z, float r);
+	/* The blades within `r` burnt away (gone in a little over a second of
+	   calls; `ms` is the time since the last call), growing back over a minute
+	   and a half; and the grass at its edge set alight: the fire runs on
+	   through the grass by itself and stops where the grass does. */
+	void (*burn)(float x, float y, float z, float r, int ms);
+	/* 1 while the grass at (x, z) is on fire */
+	int (*burning)(float x, float z);
+	/* The burning places (x, y, z each) into `out`, at most `most`, spread
+	   over all of them; returns how many were written. With out NULL, how
+	   many places burn. */
+	int (*fires)(float* out, int most);
+	/* The grass fire within `r` of (x, z) put out */
+	void (*extinguish)(float x, float z, float r);
+} SmsGrassApi;
+
 struct SmsApi {
 	uint32_t size;
 	uint16_t major, minor;
@@ -2337,6 +2366,7 @@ struct SmsApi {
 	const SmsActorApi* actor;       /* API 1.8 (SMS_API_HAS(api, actor)) */
 	const SmsModelApi* models;      /* API 1.8 (SMS_API_HAS(api, models)) */
 	const SmsReflectionsApi* reflections; /* combined-plus (SMS_API_HAS(api, reflections)) */
+	const SmsGrassApi* grass;       /* Remastered (SMS_API_HAS(api, grass); check its magic) */
 };
 
 /* ------------------------------------------------------------------ the mod's side */
