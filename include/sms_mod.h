@@ -2343,6 +2343,34 @@ typedef struct SmsGrassApi {
 	void (*extinguish)(float x, float z, float r);
 } SmsGrassApi;
 
+/* ------------------------------------------------------------------ a model's parts (Remastered) */
+
+/* api->parts (SMS_API_HAS(api, parts), and check its magic): an actor's model by its parts, for a
+ * mod's own things worn or held (models->draw at a joint) and colours of its own on one part.
+ * Works on any actor with a model (characters, enemies, items). A mod built with another SDK finds
+ * the table right after `grass` (three pointers after `models`). */
+#define SMS_PARTS_MAGIC 0x53545250u /* "PRTS" */
+typedef struct SmsPartsApi {
+	uint32_t size;
+	uint32_t magic; /* SMS_PARTS_MAGIC */
+	/* Where joint `name` of its model is in the world as it was last posed (rows: x, y, z, its axes
+	   in the first three columns, scaled as the model is, its place in the last), into out; NULL or
+	   "" its first joint. 1 found, 0 not (no such joint, no model). A Pianta's head: "kubi" (x up,
+	   y forward); a Strollin' Stu's body: "body" (the same). */
+	int (*joint)(SmsObject actor, const char* name, float out[3][4]);
+	/* How many joints its model has, and the name of the index-th (NULL past the last). */
+	int (*joint_count)(SmsObject actor);
+	const char* (*joint_name)(SmsObject actor, int index);
+	/* The parts of this one actor's model drawn with a material whose name holds `material` ("fuku"
+	   a Pianta's clothes; NULL or "" every part) drawn in a colour, as game->object_set_tint draws a
+	   whole model (its shading kept, alpha how far towards it, 0 back to its own). Kept until set
+	   again or the stage changes. Returns how many parts. */
+	int (*tint)(SmsObject actor, const char* material, SmsColor color);
+	/* Its materials' names: how many, and the index-th (NULL past the last). */
+	int (*material_count)(SmsObject actor);
+	const char* (*material_name)(SmsObject actor, int index);
+} SmsPartsApi;
+
 struct SmsApi {
 	uint32_t size;
 	uint16_t major, minor;
@@ -2367,6 +2395,7 @@ struct SmsApi {
 	const SmsModelApi* models;      /* API 1.8 (SMS_API_HAS(api, models)) */
 	const SmsReflectionsApi* reflections; /* combined-plus (SMS_API_HAS(api, reflections)) */
 	const SmsGrassApi* grass;       /* Remastered (SMS_API_HAS(api, grass); check its magic) */
+	const SmsPartsApi* parts;       /* Remastered (SMS_API_HAS(api, parts); check its magic) */
 };
 
 /* ------------------------------------------------------------------ the mod's side */
