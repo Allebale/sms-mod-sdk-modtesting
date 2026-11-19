@@ -2382,6 +2382,13 @@ typedef struct SmsPartsApi {
 	   `material` (NULL or "" every part) left out of drawing (hidden 1) or drawn again (0). Kept until
 	   set again; on a model shared by many actors, it holds for all of them. Returns how many parts. */
 	int (*hide)(SmsObject actor, const char* material, int hidden);
+	/* (Check size reaches it.) Its model's vertex positions, as the model file has them (a vertex on one
+	   joint in that joint's frame, as it stands at rest): how many, one into out, and one moved to p.
+	   On a model shared by many actors, a move holds for all of them, until set again (put back what
+	   you move when you are done). 1 done, 0 not (no such vertex or model). */
+	int (*vertex_count)(SmsObject actor);
+	int (*vertex)(SmsObject actor, int index, float out[3]);
+	int (*set_vertex)(SmsObject actor, int index, const float p[3]);
 } SmsPartsApi;
 #define SMS_PARTS_MARIO 0
 #define SMS_PARTS_YOSHI 1
