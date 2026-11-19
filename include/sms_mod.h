@@ -1302,6 +1302,8 @@ typedef struct SmsPlayerApi {
 /* player->set_hidden_parts (API 1.5) */
 #define SMS_PLAYER_PART_HEAD  1u /* his head: face, hair and cap */
 #define SMS_PLAYER_PART_FLUDD 2u /* FLUDD (it still sprays) */
+#define SMS_PLAYER_PART_CAP   4u /* (Remastered) his cap, or the hair drawn without it, left out in every view (not
+                                      the diving helmet): a hat of a mod's own in its place */
 
 typedef struct SmsCamera {
 	uint32_t size;
@@ -2376,6 +2378,10 @@ typedef struct SmsPartsApi {
 	/* Yoshi's body colour whatever fruit he last ate, as he shows it (color.a 0: the fruit's again).
 	   Kept till set again. */
 	int (*yoshi_color)(SmsColor color);
+	/* (Check size reaches it.) The parts of this one model drawn with a material whose name holds
+	   `material` (NULL or "" every part) left out of drawing (hidden 1) or drawn again (0). Kept until
+	   set again; on a model shared by many actors, it holds for all of them. Returns how many parts. */
+	int (*hide)(SmsObject actor, const char* material, int hidden);
 } SmsPartsApi;
 #define SMS_PARTS_MARIO 0
 #define SMS_PARTS_YOSHI 1
