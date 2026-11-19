@@ -2369,7 +2369,17 @@ typedef struct SmsPartsApi {
 	/* Its materials' names: how many, and the index-th (NULL past the last). */
 	int (*material_count)(SmsObject actor);
 	const char* (*material_name)(SmsObject actor, int index);
+	/* (Check size reaches it.) The player's own models, which are no stage objects, as a handle the
+	   functions above take: SMS_PARTS_MARIO, SMS_PARTS_YOSHI (NULL till he has hatched) or
+	   SMS_PARTS_FLUDD. Not an object: give it to no other function. NULL none. */
+	SmsObject (*player_part)(int which);
+	/* Yoshi's body colour whatever fruit he last ate, as he shows it (color.a 0: the fruit's again).
+	   Kept till set again. */
+	int (*yoshi_color)(SmsColor color);
 } SmsPartsApi;
+#define SMS_PARTS_MARIO 0
+#define SMS_PARTS_YOSHI 1
+#define SMS_PARTS_FLUDD 2
 
 struct SmsApi {
 	uint32_t size;
