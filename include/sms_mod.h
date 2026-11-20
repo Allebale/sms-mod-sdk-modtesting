@@ -2389,6 +2389,18 @@ typedef struct SmsPartsApi {
 	int (*vertex_count)(SmsObject actor);
 	int (*vertex)(SmsObject actor, int index, float out[3]);
 	int (*set_vertex)(SmsObject actor, int index, const float p[3]);
+	/* (Check size reaches it.) Joint `name` of its model, and every joint under it, shrunk to nothing as
+	   the model is posed (hidden 1), so the parts on them are not seen; or shown again (0). This one
+	   actor's own models only (a character's far and close ones alike). Kept until set again or the
+	   stage changes. 1 done, 0 not (no such joint). A Pianta's palm-leaf hair: "yashi_jnt",
+	   "leafL_jnt" and "leafR_jnt". */
+	int (*hide_joint)(SmsObject actor, const char* name, int hidden);
+	/* (Check size reaches it.) What a character wears that is a model of its own (12 places: a Pianta's
+	   hat, glasses, moustache and the like): the model's name at place `index` ("hatA_model"; NULL if it
+	   wears nothing there), and that one left off (hidden 1: neither drawn nor moved) or put back (0).
+	   This one character only; kept until set again or the stage changes. 1 done, 0 not. */
+	const char* (*worn_name)(SmsObject actor, int index);
+	int (*hide_worn)(SmsObject actor, int index, int hidden);
 } SmsPartsApi;
 #define SMS_PARTS_MARIO 0
 #define SMS_PARTS_YOSHI 1
