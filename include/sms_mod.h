@@ -1327,6 +1327,8 @@ typedef struct SmsPlayerApi {
 /* player->set_hidden_parts (API 1.5) */
 #define SMS_PLAYER_PART_HEAD  1u /* his head: face, hair and cap */
 #define SMS_PLAYER_PART_FLUDD 2u /* FLUDD (it still sprays) */
+#define SMS_PLAYER_PART_CAP   4u /* his cap, or the hair drawn without it, left out in every view (not
+                                      the diving helmet): a hat of a mod's own in its place */
 
 typedef struct SmsCamera {
 	uint32_t size;
@@ -2286,6 +2288,68 @@ enum {
 	SMS_BLEND_ADD = 2    /* added to what is behind it: light, glow, flames */
 };
 
+/* ------------------------------------------------------------------ a model's parts */
+
+/* api->parts (SMS_API_HAS(api, parts), and check its magic): an actor's model by its parts, for a
+ * mod's own things worn or held (models->draw at a joint) and colours of its own on one part.
+ * Works on any actor with a model (characters, enemies, items). The table comes right after
+ * `models`; a build with other tables between (Remastered: reflections and grass) has it later, so a
+ * mod for both looks for its magic in the pointers after `models`. */
+#define SMS_PARTS_MAGIC 0x53545250u /* "PRTS" */
+typedef struct SmsPartsApi {
+	uint32_t size;
+	uint32_t magic; /* SMS_PARTS_MAGIC */
+	/* Where joint `name` of its model is in the world as it was last posed (rows: x, y, z, its axes
+	   in the first three columns, scaled as the model is, its place in the last), into out; NULL or
+	   "" its first joint. 1 found, 0 not (no such joint, no model). A Pianta's head: "kubi" (x up,
+	   y forward); a Strollin' Stu's body: "body" (the same). */
+	int (*joint)(SmsObject actor, const char* name, float out[3][4]);
+	/* How many joints its model has, and the name of the index-th (NULL past the last). */
+	int (*joint_count)(SmsObject actor);
+	const char* (*joint_name)(SmsObject actor, int index);
+	/* The parts of this one actor's model drawn with a material whose name holds `material` ("fuku"
+	   a Pianta's clothes; NULL or "" every part) drawn in a colour, as game->object_set_tint draws a
+	   whole model (its shading kept, alpha how far towards it, 0 back to its own). Kept until set
+	   again or the stage changes. Returns how many parts. */
+	int (*tint)(SmsObject actor, const char* material, SmsColor color);
+	/* Its materials' names: how many, and the index-th (NULL past the last). */
+	int (*material_count)(SmsObject actor);
+	const char* (*material_name)(SmsObject actor, int index);
+	/* (Check size reaches it.) The player's own models, which are no stage objects, as a handle the
+	   functions above take: SMS_PARTS_MARIO, SMS_PARTS_YOSHI (NULL till he has hatched) or
+	   SMS_PARTS_FLUDD. Not an object: give it to no other function. NULL none. */
+	SmsObject (*player_part)(int which);
+	/* Yoshi's body colour whatever fruit he last ate, as he shows it (color.a 0: the fruit's again).
+	   Kept till set again. */
+	int (*yoshi_color)(SmsColor color);
+	/* (Check size reaches it.) The parts of this one model drawn with a material whose name holds
+	   `material` (NULL or "" every part) left out of drawing (hidden 1) or drawn again (0). Kept until
+	   set again; on a model shared by many actors, it holds for all of them. Returns how many parts. */
+	int (*hide)(SmsObject actor, const char* material, int hidden);
+	/* (Check size reaches it.) Its model's vertex positions, as the model file has them (a vertex on one
+	   joint in that joint's frame, as it stands at rest): how many, one into out, and one moved to p.
+	   On a model shared by many actors, a move holds for all of them, until set again (put back what
+	   you move when you are done). 1 done, 0 not (no such vertex or model). */
+	int (*vertex_count)(SmsObject actor);
+	int (*vertex)(SmsObject actor, int index, float out[3]);
+	int (*set_vertex)(SmsObject actor, int index, const float p[3]);
+	/* (Check size reaches it.) Joint `name` of its model, and every joint under it, shrunk to nothing as
+	   the model is posed (hidden 1), so the parts on them are not seen; or shown again (0). This one
+	   actor's own models only (a character's far and close ones alike). Kept until set again or the
+	   stage changes. 1 done, 0 not (no such joint). A Pianta's palm-leaf hair: "yashi_jnt",
+	   "leafL_jnt" and "leafR_jnt". */
+	int (*hide_joint)(SmsObject actor, const char* name, int hidden);
+	/* (Check size reaches it.) What a character wears that is a model of its own (12 places: a Pianta's
+	   hat, glasses, moustache and the like): the model's name at place `index` ("hatA_model"; NULL if it
+	   wears nothing there), and that one left off (hidden 1: neither drawn nor moved) or put back (0).
+	   This one character only; kept until set again or the stage changes. 1 done, 0 not. */
+	const char* (*worn_name)(SmsObject actor, int index);
+	int (*hide_worn)(SmsObject actor, int index, int hidden);
+} SmsPartsApi;
+#define SMS_PARTS_MARIO 0
+#define SMS_PARTS_YOSHI 1
+#define SMS_PARTS_FLUDD 2
+
 struct SmsApi {
 	uint32_t size;
 	uint16_t major, minor;
@@ -2308,6 +2372,7 @@ struct SmsApi {
 	const SmsWaterApi* water;       /* API 1.8 (SMS_API_HAS(api, water)) */
 	const SmsActorApi* actor;       /* API 1.8 (SMS_API_HAS(api, actor)) */
 	const SmsModelApi* models;      /* API 1.8 (SMS_API_HAS(api, models)) */
+	const SmsPartsApi* parts;       /* (SMS_API_HAS(api, parts); check its magic) */
 };
 
 /* ------------------------------------------------------------------ the mod's side */
