@@ -2345,6 +2345,11 @@ typedef struct SmsPartsApi {
 	   This one character only; kept until set again or the stage changes. 1 done, 0 not. */
 	const char* (*worn_name)(SmsObject actor, int index);
 	int (*hide_worn)(SmsObject actor, int index, int hidden);
+	/* (Check size reaches it.) Its models' animations held still (frozen 1), every one of them (skeletal, morph,
+	   colour, texture) kept at the frame it is at now, whatever its own code plays, so it stands as still as a
+	   picture; or let go (0). Its movement is not stopped (hold it with actor->set_velocity and set_position).
+	   Kept until let go or the stage changes. 1 done, 0 not (no actor, no model, or 64 already held). */
+	int (*freeze_anim)(SmsObject actor, int frozen);
 } SmsPartsApi;
 #define SMS_PARTS_MARIO 0
 #define SMS_PARTS_YOSHI 1
