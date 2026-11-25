@@ -2350,6 +2350,11 @@ typedef struct SmsPartsApi {
 	   picture; or let go (0). Its movement is not stopped (hold it with actor->set_velocity and set_position).
 	   Kept until let go or the stage changes. 1 done, 0 not (no actor, no model, or 64 already held). */
 	int (*freeze_anim)(SmsObject actor, int frozen);
+	/* A picture of the game's HUD shown as one of the mod's: the layout's picture pane named `pane` (up to 4
+	   characters: "c_ic" the coin counter's coin, "s_ic" the Shines', "d_ic" the blue coins') drawn with
+	   `rgba` (8 bits each, w x h, powers of two from 4 to 256, rows from the top; copied) from the HUD's next
+	   draw, in every stage after. rgba NULL: the game's own again from the next stage. 1 done. */
+	int (*hud_picture)(const char* pane, const uint8_t* rgba, int w, int h);
 } SmsPartsApi;
 #define SMS_PARTS_MARIO 0
 #define SMS_PARTS_YOSHI 1
