@@ -933,6 +933,10 @@ typedef struct SmsEvTalk {
 	uint32_t message;  /* SMS_TALK_MESSAGE: the message's id, as the stage's script asks for
 	                      it; changeable (another of the stage's or the game's messages) */
 	int last;          /* SMS_TALK_MESSAGE: the talk ends after this one */
+	const char* text;  /* SMS_TALK_MESSAGE: set to show this text in the balloon in place of the
+	                      message's own (copied; ASCII; its words wrapped to the balloon's
+	                      30-character lines, \n for a line of its own, every 3 lines a page).
+	                      A game without it shows the message's own (Allebale's game, snowman-enemy). */
 } SmsEvTalk;
 
 /* SmsEvPause.kind (API 1.5) */
