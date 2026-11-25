@@ -1514,7 +1514,7 @@ typedef struct SmsAudioApi {
 	   (left, right interleaved; `frames` pairs at `rate` a second), played over the game's sound at the
 	   music's volume, `volume` 1 as recorded, looping from its end back to frame `loop_from`, held still
 	   while the game is paused. Copied. One at a time: a new one takes the place of the last; NULL stops
-	   it. (To have it in place of a stage's own music, cancel that in SMS_EV_MUSIC.) 1 done. */
+	   it. The game's own music is silent while it plays. 1 done. */
 	int (*play_music)(const int16_t* lr, int frames, int rate, int loop_from, float volume);
 } SmsAudioApi;
 
