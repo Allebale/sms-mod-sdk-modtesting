@@ -2371,6 +2371,42 @@ typedef struct SmsPartsApi {
 #define SMS_PARTS_YOSHI 1
 #define SMS_PARTS_FLUDD 2
 
+/* ------------------------------------------------------------------ custom levels */
+
+/* api->levels (SMS_API_HAS(api, levels), and check its magic): the custom levels installed (World
+ * editor levels, each a folder in the launcher's levels folder), and going to one. A custom level
+ * plays in a stage slot the disc leaves empty, with Shines of its own ("special Shines") that never
+ * count toward the save file's. The table comes right after `parts`; a build with other tables
+ * between has it later, so look for its magic in the pointers after `models`. */
+#define SMS_LEVELS_MAGIC 0x534C564Cu /* "LVLS" */
+typedef struct SmsLevelInfo {
+	uint32_t size; /* sizeof(SmsLevelInfo), set before asking */
+	char id[64];
+	char name[64];
+	char author[64];
+	char description[256];
+	char folder[260];   /* its folder: picture.png there is its picture, if it has one */
+	int shines;         /* how many Shines it has (0: not known) */
+	int blue_coins;     /* how many blue coins */
+	int got_shines;     /* how many of its Shines this save file has */
+	int got_blue_coins;
+} SmsLevelInfo;
+typedef struct SmsLevelsApi {
+	uint32_t size;
+	uint32_t magic; /* SMS_LEVELS_MAGIC */
+	/* How many custom levels are installed (looked for again each call), and the index-th, into out
+	   (out->size set). 1 done, 0 no such level. Sorted by name. */
+	int (*count)(void);
+	int (*info)(int index, SmsLevelInfo* out);
+	/* Takes Mario to the index-th level now, as a stage exit does (the next stage load is there).
+	   Only while a stage is being played. 1 done, 0 not. */
+	int (*enter)(int index);
+	/* The index of the level Mario is in, or -1. */
+	int (*current)(void);
+	/* Every custom level's Shines this save file has. */
+	int (*special_shines)(void);
+} SmsLevelsApi;
+
 struct SmsApi {
 	uint32_t size;
 	uint16_t major, minor;
@@ -2394,6 +2430,7 @@ struct SmsApi {
 	const SmsActorApi* actor;       /* API 1.8 (SMS_API_HAS(api, actor)) */
 	const SmsModelApi* models;      /* API 1.8 (SMS_API_HAS(api, models)) */
 	const SmsPartsApi* parts;       /* (SMS_API_HAS(api, parts); check its magic) */
+	const SmsLevelsApi* levels;     /* (SMS_API_HAS(api, levels); check its magic) */
 };
 
 /* ------------------------------------------------------------------ the mod's side */
