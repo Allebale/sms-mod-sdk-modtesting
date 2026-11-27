@@ -2405,9 +2405,10 @@ typedef struct SmsLevelsApi {
 	int (*current)(void);
 	/* Every custom level's Shines this save file has. */
 	int (*special_shines)(void);
-	/* After a Shine in a level with episodes: 1 its next episode starts (the last one's goes back as
-	   before), 0 back where Mario came from (the default). Kept until changed, not saved: set it at
-	   load. Check size (offsetof) before using these two. */
+	/* 1: after a Shine in a level with episodes the next episode whose Shine Mario lacks starts (every
+	   one got: back as before), and a lost life in a custom level starts its stage again; 0: back
+	   where Mario came from for both (the default). Kept until changed, not saved: set it at load.
+	   Check size (offsetof) before using these two. */
 	void (*set_after_shine)(int next_episode);
 	int (*after_shine)(void);
 } SmsLevelsApi;
